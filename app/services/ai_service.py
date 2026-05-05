@@ -1,7 +1,7 @@
 import os
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import Chroma
-from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains import RetrievalQA
 from langchain.prompts import PromptTemplate
 from dotenv import load_dotenv
@@ -97,7 +97,7 @@ class AIService:
         """Adiciona dados iniciais se a coleção estiver vazia."""
         try:
             if not self.vector_store.get_by_ids(["initial_check"]):
-                text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+                text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
                 docs = text_splitter.create_documents(data)
                 self.vector_store.add_documents(docs)
         except Exception:
@@ -159,7 +159,7 @@ class AIService:
 
     async def add_document(self, text: str, metadata: dict = None):
         """Adiciona um novo documento à base de conhecimento."""
-        text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
         docs = text_splitter.create_documents([text], metadatas=[metadata or {}])
         self.vector_store.add_documents(docs)
 
