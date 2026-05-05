@@ -34,8 +34,12 @@ class AIService:
         self.init_knowledge_base()
 
     def _init_embeddings(self):
-        """Inicializa o modelo de embedding local."""
-        return HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
+        """Inicializa o modelo de embedding usando Ollama (Eficiente para 4GB RAM)."""
+        from langchain_ollama import OllamaEmbeddings
+        return OllamaEmbeddings(
+            model=settings.OLLAMA_MODEL,
+            base_url=settings.OLLAMA_BASE_URL
+        )
 
     def _init_llm(self):
         """Inicializa o LLM principal com fallback automático."""
@@ -53,39 +57,27 @@ class AIService:
             )
 
     def _init_redis_cache(self):
-        """Inicializa o cache semântico no Redis com rigor máximo."""
-        try:
-            import langchain_core.globals
-            from langchain_redis import RedisSemanticCache
-            from langchain_core.outputs import Generation
-            
-            redis_url = settings.REDIS_URL
-            # Reativa com overwrite=True para evitar conflitos de esquema
-            cache = RedisSemanticCache(
-                redis_url=redis_url,
-                embeddings=self.embeddings,
-                distance_threshold=settings.SEMANTIC_CACHE_THRESHOLD,
-                overwrite=True
-            )
-            
-            # Garante que o índice existe fazendo um write de teste
-            try:
-                cache.update("init_check", "upi_ready", [Generation(text="ok")])
-            except Exception as e:
-                print(f"Aviso na inicialização do índice: {e}", flush=True)
-
-            langchain_core.globals.set_llm_cache(cache)
-            print(f"Cache semântico ATIVADO (Threshold: {settings.SEMANTIC_CACHE_THRESHOLD}).", flush=True)
-        except Exception as e:
-            print(f"Erro ao ativar Redis Cache: {e}. Prosseguindo em tempo real.", flush=True)
+        """Cache Semântico Manual ativado via RedisVL (Configurado no get_response)."""
+        # Desativamos o set_llm_cache global para evitar conflitos e economizar memória
+        print("Mecanismo de Cache Semântico Manual (RedisVL) pronto.", flush=True)
 
     def init_knowledge_base(self):
-        """Configura o Vector Store (Postgres ou Chroma fallback)."""
-        initial_data = [
-            "O NAPSI oferece suporte aos alunos com TEA. Contato: napsi@poli.upe.br.",
-            "A POLI/UPE atende no campus de Garanhuns das 08:00 às 17:00.",
-            "Matrículas são realizadas via portal do estudante."
-        ]
+        """Configura o Vector Store com dados do arquivo napsi_info.txt."""
+        initial_data = []
+        try:
+            info_path = os.path.join(os.path.dirname(__file__), "..", "..", "data", "napsi_info.txt")
+            if os.path.exists(info_path):
+                with open(info_path, "r", encoding="utf-8") as f:
+                    content = f.read().strip()
+                    if content:
+                        initial_data = [content]
+            
+            # Fallback se o arquivo estiver vazio ou não existir
+            if not initial_data:
+                initial_data = ["O NAPSI/UPE oferece suporte psicopedagógico no Bloco A, Sala 12, das 08h às 17h."]
+        except Exception as e:
+            print(f"Erro ao ler arquivo de conhecimento: {e}")
+            initial_data = ["Erro ao carregar base de conhecimento."]
         
         try:
             self.vector_store = PGVector(
@@ -119,40 +111,100 @@ class AIService:
         )
 
     async def get_response(self, user_input: str, chat_history: List[BaseMessage] = None):
-        """Processa a entrada do usuário e retorna uma resposta estruturada."""
+        """Processa a entrada do usuário com Busca por Similaridade Semântica manual via RedisVL."""
         try:
-            # 1. Tenta o Cache Semântico Manualmente para Debug/Controle
-            import langchain_core.globals
-            cache = langchain_core.globals.get_llm_cache()
-            if cache:
-                # O cache do langchain-redis armazena como lista de Generation
-                # Adiciona log da busca semântica para controle de threshold
-                cached_val = cache.lookup(user_input, "upi")
-                if cached_val:
-                    print(f"[CACHE HIT] Respondendo via Redis para: {user_input}", flush=True)
-                    return self._parse_structured_response(cached_val[0].text)
+            from redisvl.index import SearchIndex
+            from redisvl.query import VectorQuery
+            import numpy as np
 
-            # 2. Se não houver cache, segue o fluxo normal
-            print(f"[LLM] Processando nova pergunta: {user_input}", flush=True)
+            # 1. Configuração do Índice Semântico
+            index_schema = {
+                "index": {"name": "upi_cache", "prefix": "cache"},
+                "fields": [
+                    {"name": "prompt", "type": "text"},
+                    {"name": "response", "type": "text"},
+                    {
+                        "name": "prompt_vector",
+                        "type": "vector",
+                        "attrs": {
+                            "dims": 3072,
+                            "distance_metric": "cosine",
+                            "algorithm": "flat",
+                            "datatype": "float32",
+                        },
+                    },
+                ],
+            }
             
-            # Recupera documentos relevantes do PGVector
+            # Inicializa o índice (conecta ao Redis)
+            try:
+                idx = SearchIndex.from_dict(index_schema, redis_url=settings.REDIS_URL)
+                # Tenta criar o índice se não existir
+                if not idx.exists():
+                    idx.create(overwrite=False)
+            except Exception as e:
+                print(f"Erro ao conectar ao RedisVL: {e}", flush=True)
+                idx = None
+
+            # 2. Busca por Similaridade no Cache
+            query_vector = self.embeddings.embed_query(user_input)
+            query_vector_np = np.array(query_vector, dtype=np.float32).tobytes()
+            
+            # Fingerprint para debug
+            vector_fp = query_vector[:5]
+            print(f"[DEBUG VECTOR] Pergunta: {user_input} | FP: {vector_fp}", flush=True)
+            
+            if idx:
+                # Busca o vizinho mais próximo
+                query = VectorQuery(
+                    vector=query_vector,
+                    vector_field_name="prompt_vector",
+                    return_fields=["prompt", "response"],
+                    num_results=1
+                )
+                
+                results = idx.query(query)
+                
+                if results:
+                    hit = results[0]
+                    distance = float(hit.get('vector_distance', 1.0))
+                    print(f"[DEBUG CACHE] Pergunta: {user_input} | Hit: {hit.get('prompt')} | Distância: {distance:.4f}", flush=True)
+                    
+                    # Threshold de 0.12 (Ajuste fino para máxima precisão com Llama 3.2)
+                    if distance < 0.12:
+                        print(f"[SEMANTIC HIT] Similaridade: {1-distance:.2%} | Usando Cache.", flush=True)
+                        return self._parse_structured_response(hit['response'])
+
+            # 3. Cache Miss - Processa via LLM
+            print(f"[LLM] Pensando: {user_input}", flush=True)
             docs = self.vector_store.similarity_search(user_input, k=3)
             context = "\n".join([doc.page_content for doc in docs])
+            print(f"[DEBUG CONTEXT] Encontrado: {len(docs)} docs | Contexto: {context[:100]}...", flush=True)
             
-            # Prepara a mensagem do sistema com o contexto
             system_msg = UPI_SYSTEM_PROMPT.format(context=context)
-            
-            # Constrói a lista de mensagens
             messages = [SystemMessage(content=system_msg)]
             if chat_history:
-                messages.extend(chat_history[-5:]) # Últimas 5 mensagens para contexto
+                messages.extend(chat_history[-5:])
             messages.append(HumanMessage(content=user_input))
             
-            # Chama o LLM
             response = self.llm.invoke(messages)
+            response_text = response.content
+
+            # 4. Salva no Cache Semântico
+            if idx:
+                try:
+                    idx.load([
+                        {
+                            "prompt": user_input,
+                            "response": response_text,
+                            "prompt_vector": query_vector_np
+                        }
+                    ])
+                    print(f"[CACHE STORE] Indexado: {user_input}", flush=True)
+                except Exception as e:
+                    print(f"Erro ao indexar no cache: {e}", flush=True)
             
-            # Parse e Retorno
-            return self._parse_structured_response(response.content)
+            return self._parse_structured_response(response_text)
             
         except Exception as e:
             print(f"Erro crítico no AIService: {e}", flush=True)
@@ -180,12 +232,14 @@ class AIService:
         """Tenta parsear a resposta como JSON, fallback para texto puro se falhar."""
         import json
         try:
-            # Limpa possíveis blocos de código markdown
-            clean_raw = raw.replace("```json", "").replace("```", "").strip()
+            # Limpa possíveis blocos de código markdown e prefixos "JSON:"
+            clean_raw = raw.replace("```json", "").replace("```", "").replace("JSON:", "").strip()
             data = json.loads(clean_raw)
             return data
         except Exception:
-            return {"response": raw, "emotion": "neutral"}
+            # Se falhar o parse, tenta limpar o texto e retornar como resposta
+            clean_text = raw.replace("JSON:", "").replace("```json", "").replace("```", "").strip()
+            return {"response": clean_text, "emotion": "neutral"}
 
     async def add_document(self, text: str, metadata: dict = None):
         """Adiciona um novo documento à base de conhecimento."""
