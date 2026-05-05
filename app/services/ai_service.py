@@ -64,6 +64,9 @@ class AIService:
             cache = RedisSemanticCache(
                 redis_url=redis_url,
                 embeddings=self.embeddings,
+                distance_threshold=settings.SEMANTIC_CACHE_THRESHOLD,
+                overwrite=True
+            )
             
             # Garante que o índice existe fazendo um write de teste
             try:
@@ -72,7 +75,7 @@ class AIService:
                 print(f"Aviso na inicialização do índice: {e}", flush=True)
 
             langchain_core.globals.set_llm_cache(cache)
-            print("Cache semântico REATIVADO e OTIMIZADO (Threshold: 0.02).", flush=True)
+            print(f"Cache semântico ATIVADO (Threshold: {settings.SEMANTIC_CACHE_THRESHOLD}).", flush=True)
         except Exception as e:
             print(f"Erro ao ativar Redis Cache: {e}. Prosseguindo em tempo real.", flush=True)
 
