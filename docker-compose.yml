@@ -1,0 +1,24 @@
+services:
+  db:
+    image: ankane/pgvector:latest
+    container_name: upi_db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: upi_db
+      POSTGRES_USER: upi_user
+      POSTGRES_PASSWORD: upi_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis/redis-stack-server:latest
+    container_name: upi_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
