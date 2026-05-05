@@ -1,9 +1,9 @@
 import os
 import json
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_postgres import PGVector
@@ -60,12 +60,10 @@ class AIService:
             from langchain_core.outputs import Generation
             
             redis_url = settings.REDIS_URL
-            # Threshold de 0.02 para ser extremamente rigoroso (evita falsos positivos)
+            # Reativa com overwrite=True para evitar conflitos de esquema
             cache = RedisSemanticCache(
                 redis_url=redis_url,
                 embeddings=self.embeddings,
-                distance_threshold=0.02 
-            )
             
             # Garante que o índice existe fazendo um write de teste
             try:
