@@ -27,6 +27,7 @@ services:
     environment:
       - DATABASE_URL=postgresql+psycopg2://upi_user:upi_password@db:5432/upi_db
       - REDIS_URL=redis://redis:6379
+      - OLLAMA_BASE_URL=http://ollama:11434
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - db
