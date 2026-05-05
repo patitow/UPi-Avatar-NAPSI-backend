@@ -53,31 +53,30 @@ class AIService:
             )
 
     def _init_redis_cache(self):
-        """Inicializa o cache semântico no Redis para economizar tokens de LLM."""
+        """Inicializa o cache semântico no Redis com rigor máximo."""
         try:
             import langchain_core.globals
             from langchain_redis import RedisSemanticCache
             from langchain_core.outputs import Generation
             
             redis_url = settings.REDIS_URL
+            # Threshold de 0.02 para ser extremamente rigoroso (evita falsos positivos)
             cache = RedisSemanticCache(
                 redis_url=redis_url,
                 embeddings=self.embeddings,
-                distance_threshold=settings.SEMANTIC_CACHE_THRESHOLD
+                distance_threshold=0.02 
             )
             
-            # Tenta criar o índice se não existir (evita erro de No such index)
+            # Garante que o índice existe fazendo um write de teste
             try:
-                # No langchain-redis moderno, a criação do índice é automática no primeiro write
-                # Fazemos um write silencioso de warmup
-                cache.update("warmup", "upi", [Generation(text="ready")])
+                cache.update("init_check", "upi_ready", [Generation(text="ok")])
             except Exception as e:
-                print(f"Aviso na criação do índice de cache: {e}", flush=True)
+                print(f"Aviso na inicialização do índice: {e}", flush=True)
 
             langchain_core.globals.set_llm_cache(cache)
-            print("Cache semântico ativado no Redis (Threshold: 0.3).", flush=True)
+            print("Cache semântico REATIVADO e OTIMIZADO (Threshold: 0.02).", flush=True)
         except Exception as e:
-            print(f"Aviso: Não foi possível ativar o Redis Cache: {e}. Prosseguindo sem cache.", flush=True)
+            print(f"Erro ao ativar Redis Cache: {e}. Prosseguindo em tempo real.", flush=True)
 
     def init_knowledge_base(self):
         """Configura o Vector Store (Postgres ou Chroma fallback)."""
