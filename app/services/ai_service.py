@@ -54,9 +54,30 @@ class AIService:
 
     def _init_redis_cache(self):
         """Inicializa o cache semântico no Redis para economizar tokens de LLM."""
-        # Desativado temporariamente para resolver erro de índice inexistente
-        print("Cache semântico desativado temporariamente para depuração.", flush=True)
-        return 
+        try:
+            import langchain_core.globals
+            from langchain_redis import RedisSemanticCache
+            from langchain_core.outputs import Generation
+            
+            redis_url = settings.REDIS_URL
+            cache = RedisSemanticCache(
+                redis_url=redis_url,
+                embeddings=self.embeddings,
+                distance_threshold=settings.SEMANTIC_CACHE_THRESHOLD
+            )
+            
+            # Tenta criar o índice se não existir (evita erro de No such index)
+            try:
+                # No langchain-redis moderno, a criação do índice é automática no primeiro write
+                # Fazemos um write silencioso de warmup
+                cache.update("warmup", "upi", [Generation(text="ready")])
+            except Exception as e:
+                print(f"Aviso na criação do índice de cache: {e}", flush=True)
+
+            langchain_core.globals.set_llm_cache(cache)
+            print("Cache semântico ativado no Redis (Threshold: 0.3).", flush=True)
+        except Exception as e:
+            print(f"Aviso: Não foi possível ativar o Redis Cache: {e}. Prosseguindo sem cache.", flush=True)
 
     def init_knowledge_base(self):
         """Configura o Vector Store (Postgres ou Chroma fallback)."""

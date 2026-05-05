@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     
     # Cache
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
-    SEMANTIC_CACHE_THRESHOLD: float = 0.05
+    SEMANTIC_CACHE_THRESHOLD: float = 0.1
     
     # Fallback
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
