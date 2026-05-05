@@ -216,3 +216,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project Specific
+db/
+redis_data/
+postgres_data/
+data/*.pdf
+data/*.txt
+data/*.md
+!data/napsi_info.txt

@@ -52,9 +52,14 @@ class AIService:
             self.using_fallback = False
             return ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7)
         except Exception:
-            print("Aviso: OpenAI não disponível. Usando Ollama (llama3.2:3b).")
+            ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            print(f"Aviso: OpenAI não disponível. Usando Ollama ({ollama_url}) como fallback.")
+            self.llm = ChatOllama(
+                model="llama3.2:3b", 
+                temperature=0.7,
+                base_url=ollama_url
+            )
             self.using_fallback = True
-            return ChatOllama(model="llama3.2:3b", temperature=0.7)
 
     def _init_redis_cache(self):
         """Inicializa o cache semântico no Redis para economizar tokens de LLM."""

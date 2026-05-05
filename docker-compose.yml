@@ -19,6 +19,29 @@ services:
     volumes:
       - redis_data:/data
 
+  api:
+    build: .
+    container_name: upi_api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://upi_user:upi_password@db:5432/upi_db
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - db
+      - redis
+      - ollama
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: upi_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
 volumes:
   postgres_data:
   redis_data:
+  ollama_data:
