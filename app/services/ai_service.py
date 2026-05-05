@@ -17,6 +17,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from pathlib import Path
 
 from app.prompts.upi_prompts import UPI_SYSTEM_PROMPT
+from app.config import settings
 
 class AIService:
     """
@@ -29,11 +30,8 @@ class AIService:
         self.system_instructions = UPI_SYSTEM_PROMPT
         
         # Configuração do banco de dados
-        self.connection_string = connection_string or os.getenv(
-            "DATABASE_URL", 
-            "postgresql+psycopg2://upi_user:upi_password@localhost:5432/upi_db"
-        )
-        self.collection_name = "upi_knowledge"
+        self.connection_string = connection_string or settings.DATABASE_URL
+        self.collection_name = settings.COLLECTION_NAME
         
         self.vector_store = None
         
@@ -44,18 +42,18 @@ class AIService:
 
     def _init_embeddings(self):
         """Inicializa o modelo de embedding local."""
-        return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        return HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
 
     def _init_llm(self):
         """Inicializa o LLM principal com fallback automático."""
         try:
             self.using_fallback = False
-            return ChatOpenAI(model_name="gpt-4o-mini", temperature=0.7)
+            return ChatOpenAI(model_name=settings.OPENAI_MODEL, temperature=0.7)
         except Exception:
-            ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            ollama_url = settings.OLLAMA_BASE_URL
             print(f"Aviso: OpenAI não disponível. Usando Ollama ({ollama_url}) como fallback.")
             self.llm = ChatOllama(
-                model="llama3.2:3b", 
+                model=settings.OLLAMA_MODEL, 
                 temperature=0.7,
                 base_url=ollama_url
             )
@@ -67,12 +65,12 @@ class AIService:
             import langchain
             from langchain_redis import RedisSemanticCache
             
-            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+            redis_url = settings.REDIS_URL
             langchain.globals.set_llm_cache(
                 RedisSemanticCache(
                     redis_url=redis_url,
                     embedding=self.embeddings,
-                    score_threshold=0.05 # Sensibilidade do cache
+                    score_threshold=settings.SEMANTIC_CACHE_THRESHOLD
                 )
             )
             print("Cache semântico ativado no Redis.")
