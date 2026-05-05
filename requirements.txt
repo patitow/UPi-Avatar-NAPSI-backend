@@ -1,6 +1,7 @@
 fastapi
 uvicorn
 langchain
+langchain-text-splitters
 langchain-openai
 langchain-community
 chromadb
@@ -10,6 +11,8 @@ psycopg2-binary
 pgvector
 langchain-postgres
 sqlalchemy
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
 sentence-transformers
 langchain-huggingface
 langchain-ollama
