@@ -1,7 +1,7 @@
 import os
 import asyncio
 from langchain_community.document_loaders import PyPDFLoader, TextLoader, UnstructuredMarkdownLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from app.services.ai_service import ai_service
 from pathlib import Path
 
