@@ -117,31 +117,48 @@ class AIService:
             persist_directory="db"
         )
 
-    async def get_response(self, user_message: str) -> dict:
-        """
-        Processa a pergunta do usuário usando RAG e retorna a resposta do assistente.
-        """
+    async def get_response(self, user_input: str, chat_history: List[BaseMessage] = None):
+        """Processa a entrada do usuário e retorna uma resposta estruturada."""
         try:
-            # 1. Recuperação (Retrieval)
-            docs = self.vector_store.similarity_search(user_message, k=2)
-            context = "\n".join([d.page_content for d in docs])
-            print(f"DEBUG - Contexto recuperado: {context}", flush=True)
+            # 1. Tenta o Cache Semântico Manualmente para Debug/Controle
+            import langchain_core.globals
+            cache = langchain_core.globals.get_llm_cache()
+            if cache:
+                # O cache do langchain-redis armazena como lista de Generation
+                # Adiciona log da busca semântica para controle de threshold
+                cached_val = cache.lookup(user_input, "upi")
+                if cached_val:
+                    print(f"[CACHE HIT] Respondendo via Redis para: {user_input}", flush=True)
+                    return self._parse_structured_response(cached_val[0].text)
+
+            # 2. Se não houver cache, segue o fluxo normal
+            print(f"[LLM] Processando nova pergunta: {user_input}", flush=True)
             
-            # 2. Geração (Generation) com Mensagens Estruturadas
-            messages = [
-                SystemMessage(content=self.system_instructions.format(context=context if context else "Nenhuma informação extra.")),
-                HumanMessage(content=user_message)
-            ]
+            # Recupera documentos relevantes do PGVector
+            docs = self.vector_store.similarity_search(user_input, k=3)
+            context = "\n".join([doc.page_content for doc in docs])
             
-            raw_response = await self._call_llm_structured(messages)
-            print(f"DEBUG - Resposta bruta do LLM: {raw_response}", flush=True)
-            return self._parse_structured_response(raw_response)
-                
+            # Prepara a mensagem do sistema com o contexto
+            system_msg = UPI_SYSTEM_PROMPT.format(context=context)
+            
+            # Constrói a lista de mensagens
+            messages = [SystemMessage(content=system_msg)]
+            if chat_history:
+                messages.extend(chat_history[-5:]) # Últimas 5 mensagens para contexto
+            messages.append(HumanMessage(content=user_input))
+            
+            # Chama o LLM
+            response = self.llm.invoke(messages)
+            
+            # Parse e Retorno
+            return self._parse_structured_response(response.content)
+            
         except Exception as e:
             print(f"Erro crítico no AIService: {e}", flush=True)
-            import traceback
-            traceback.print_exc()
-            return {"response": "Eita! Tive um probleminha aqui pra te responder. Tenta de novo em instantes!", "emotion": "neutral"}
+            return {
+                "response": "Eita! Tive um probleminha aqui pra te responder. Tenta de novo em instantes!",
+                "emotion": "neutral"
+            }
 
     async def _call_llm_structured(self, messages: list) -> str:
         """Executa a chamada ao LLM usando mensagens estruturadas (System/Human)."""
