@@ -9,16 +9,38 @@ Este é o motor de inteligência do UPi, um assistente virtual projetado para ap
 - **RAG (Retrieval-Augmented Generation)**: Respostas baseadas em documentos reais.
 - **PGVector (PostgreSQL)**: Armazenamento vetorial robusto para conhecimento institucional.
 - **Redis Semantic Cache**: Cache inteligente que entende o significado das perguntas, economizando tokens e reduzindo latência.
-- **Local Embeddings (`all-MiniLM-L6-v2`)**: Processamento de vetores 100% local (custo zero e alta velocidade).
+- **Local Embeddings (Ollama `llama3.2:3b`)**: Embeddings gerados localmente via Ollama, sem envio de dados para APIs externas.
 - **Ollama Fallback**: Suporte nativo ao modelo `llama3.2:3b` para operação offline ou caso a API principal falhe.
 
 ## 📋 Pré-requisitos
 
 - Python 3.10+
-- Docker & Docker Compose
-- [Ollama](https://ollama.com/) (opcional, para fallback local)
+- [Ollama](https://ollama.com/) — necessário para embeddings e LLM local
+- Docker & Docker Compose (opcional — modo completo com PostgreSQL e Redis)
 
-## 🛠️ Configuração
+## 🚀 Modo Local (sem Docker, sem chave OpenAI)
+
+A forma mais rápida de rodar o UPi sem nenhuma dependência externa:
+
+```bash
+# 1. Instale o Ollama (macOS)
+brew install ollama   # ou baixe em https://ollama.com
+
+# 2. Execute o script de inicialização automática
+bash start_local.sh
+```
+
+O script verifica/instala tudo automaticamente:
+- Inicia o Ollama se não estiver rodando
+- Baixa o modelo `llama3.2:3b` se necessário (~2 GB, só na primeira vez)
+- Usa **ChromaDB local** como vector store (sem PostgreSQL)
+- Inicia o backend sem precisar de `OPENAI_API_KEY`
+
+> O frontend exibirá **"IA Local · llama3.2:3b"** em roxo quando esse modo estiver ativo.
+
+## 🐳 Modo Completo (Docker + OpenAI)
+
+Para o modo de produção com PostgreSQL, Redis e OpenAI:
 
 1. **Instale as dependências**:
    ```bash
@@ -29,7 +51,7 @@ Este é o motor de inteligência do UPi, um assistente virtual projetado para ap
    ```bash
    docker-compose up -d
    ```
-   *Isso iniciará o PostgreSQL com pgvector e o Redis Stack.*
+   *Isso iniciará o PostgreSQL com pgvector, o Redis Stack e o Ollama. O modelo `llama3.2:3b` é baixado automaticamente na primeira execução (~2 GB — aguarde o serviço `ollama` ficar `healthy` antes de usar a API).*
 
 3. **Variáveis de Ambiente**:
    Crie um arquivo `.env` na raiz:

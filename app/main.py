@@ -1,3 +1,8 @@
+# Evita conflito entre Keras 3 e transformers (deve vir antes de qualquer import de ML)
+import os
+os.environ.setdefault("USE_TF", "0")
+os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -19,6 +24,7 @@ app.add_middleware(
 )
 
 from app.services.ai_service import ai_service
+from app.config import settings
 
 class ChatMessage(BaseModel):
     message: str
@@ -28,9 +34,20 @@ class ChatMessage(BaseModel):
 async def root():
     return {"status": "online", "message": "UPi API está funcionando!"}
 
+@app.get("/health")
+async def health():
+    """Retorna o estado operacional e quais serviços de IA estão ativos."""
+    return {
+        "status": "online",
+        "llm_provider": "ollama" if ai_service.using_fallback else "openai",
+        "llm_model": settings.OLLAMA_MODEL if ai_service.using_fallback else settings.OPENAI_MODEL,
+        "embedding_model": settings.OLLAMA_MODEL,
+        "vector_store": ai_service.vector_store_type,
+    }
+
 @app.post("/chat")
 async def chat(payload: ChatMessage):
-    response = await ai_service.get_response(payload.message)
+    response = await ai_service.get_response(payload.message, user_id=payload.user_id)
     return response
 
 class IngestData(BaseModel):

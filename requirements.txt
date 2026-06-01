@@ -21,5 +21,6 @@ pytest
 pytest-asyncio
 httpx
 redis
+redisvl
 langchain-redis
 pypdf
