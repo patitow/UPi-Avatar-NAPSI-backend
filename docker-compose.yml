@@ -43,6 +43,7 @@ services:
       - REDIS_URL=redis://redis:6379
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - OLLAMA_MODEL=llama3.2:3b
+      - UPI_DEV_MODE=0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - TTS_PROVIDER=${TTS_PROVIDER:-gtts}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}

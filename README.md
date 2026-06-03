@@ -15,30 +15,35 @@ Este é o motor de inteligência do UPi, um assistente virtual projetado para ap
 ## 📋 Pré-requisitos
 
 - Python 3.10+
-- [Ollama](https://ollama.com/) — necessário para embeddings e LLM local
-- Docker & Docker Compose (opcional — modo completo com PostgreSQL e Redis)
+- [Ollama](https://ollama.com/) — LLM e embeddings locais
+- **Desenvolvimento:** só isso (sem Docker)
+- **Produção / integração:** Docker (`compose-up`) com Postgres + Redis
 
-## 🚀 Modo Local (sem Docker, sem chave OpenAI)
+## 🛠️ Desenvolvimento local (sem Docker)
 
-A forma mais rápida de rodar o UPi sem nenhuma dependência externa:
+Ativa `UPI_DEV_MODE=1`: **ChromaDB** em `data/chroma_db` + **cache semântico** em RAM/arquivo `data/dev_semantic_cache.json`. Sem Postgres, sem Redis.
+
+```powershell
+# Windows
+.\start_dev.ps1
+```
 
 ```bash
-# 1. Instale o Ollama (macOS)
-brew install ollama   # ou baixe em https://ollama.com
-
-# 2. Execute o script de inicialização automática
+# Linux/macOS
 bash start_local.sh
 ```
 
-O script verifica/instala tudo automaticamente:
-- Inicia o Ollama se não estiver rodando
-- Baixa o modelo `llama3.2:3b` se necessário (~2 GB, só na primeira vez)
-- Requer **Postgres+pgvector** e **Redis** locais (ou use Docker via `compose-up`)
-- Inicia o backend sem precisar de `OPENAI_API_KEY`
+Ou manualmente:
 
-> O frontend exibirá **"IA Local · llama3.2:3b"** em roxo quando esse modo estiver ativo.
+```bash
+export UPI_DEV_MODE=1
+pip install -r requirements-dev.txt
+uvicorn app.main:app --reload --port 8000
+```
 
-## 🐳 Modo Completo (Docker + OpenAI)
+Front (outro terminal): `npm run dev` em `UPi-Avatar-NAPSI` — proxy em `http://localhost:5173`.
+
+## 🐳 Produção / stack completa (Docker)
 
 Para o modo de produção com PostgreSQL, Redis e OpenAI:
 

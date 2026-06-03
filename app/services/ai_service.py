@@ -6,6 +6,7 @@ from typing import List, Optional
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 
 from app.config import settings
+from app.services.semantic_cache import create_semantic_cache
 from app.services.tts import synthesize_speech
 
 DEFAULT_UPI_PROMPT = """Você é o UPi, o assistente virtual oficial do NAPSI (Núcleo de Apoio Psicopedagógico e Suporte Estudantil) da POLI/UPE.
@@ -52,9 +53,10 @@ FALLBACK_ANSWERS = {
 
 
 class AIService:
-    """LLM + RAG (PGVector) + cache semântico (Redis) + TTS configurável."""
+    """Dev: Chroma + cache JSON. Produção: PGVector + Redis."""
 
     def __init__(self, connection_string: Optional[str] = None):
+        self.dev_mode = settings.UPI_DEV_MODE
         self.using_fallback = False
         self.embeddings = self._init_embeddings()
         self.llm = self._init_llm()
@@ -69,11 +71,17 @@ class AIService:
             else str(raw)
         )
 
-        self._init_redis_cache()
-        self.init_knowledge_base()
+        mode = "DEV (Chroma + cache JSON)" if self.dev_mode else "PROD (PGVector + Redis)"
+        print(f"[INFO] AIService — {mode}", flush=True)
 
-    def _init_redis_cache(self):
-        print("[INFO] Cache semântico RedisVL (sob demanda).", flush=True)
+        self.semantic_cache = create_semantic_cache(
+            dev_mode=self.dev_mode,
+            embeddings=self.embeddings,
+            redis_url=settings.REDIS_URL,
+            cache_path=settings.DEV_CACHE_PATH,
+            distance_threshold=settings.SEMANTIC_CACHE_DISTANCE,
+        )
+        self.init_knowledge_base()
 
     def _init_embeddings(self):
         try:
@@ -138,28 +146,7 @@ class AIService:
             print(f"[AVISO] napsi_info.txt: {e}", flush=True)
         return seeds
 
-    def init_knowledge_base(self):
-        """Vector store único: PGVector (Postgres)."""
-        if not self.embeddings:
-            print("[AVISO] Sem embeddings — RAG desativado.", flush=True)
-            return
-
-        try:
-            from langchain_postgres import PGVector
-
-            self.vector_store = PGVector(
-                embeddings=self.embeddings,
-                collection_name=self.collection_name,
-                connection=self.connection_string,
-                use_jsonb=True,
-            )
-            self._seed_pgvector_if_empty()
-            print("[INFO] PGVector inicializado.", flush=True)
-        except Exception as e:
-            print(f"[AVISO] PGVector indisponível: {e}", flush=True)
-            self.vector_store = None
-
-    def _seed_pgvector_if_empty(self):
+    def _seed_vector_store_if_empty(self) -> None:
         try:
             if self.vector_store.similarity_search("NAPSI UPE", k=1):
                 return
@@ -173,109 +160,80 @@ class AIService:
             )
             docs = splitter.create_documents(self._load_seed_texts())
             self.vector_store.add_documents(docs)
-            print("[INFO] Base NAPSI semeada no PGVector.", flush=True)
+            print("[INFO] Base NAPSI semeada.", flush=True)
         except Exception as e:
-            print(f"[AVISO] Seed PGVector: {e}", flush=True)
+            print(f"[AVISO] Seed vector store: {e}", flush=True)
+
+    def init_knowledge_base(self):
+        if not self.embeddings:
+            print("[AVISO] Sem embeddings — RAG desativado.", flush=True)
+            return
+
+        if self.dev_mode:
+            self._init_chroma()
+        else:
+            self._init_pgvector()
+
+    def _init_chroma(self):
+        persist_dir = settings.CHROMA_PERSIST_DIR
+        os.makedirs(persist_dir, exist_ok=True)
+        try:
+            from langchain_community.vectorstores import Chroma
+
+            self.vector_store = Chroma(
+                embedding_function=self.embeddings,
+                persist_directory=persist_dir,
+                collection_name=self.collection_name,
+            )
+            existing = self.vector_store.get().get("ids") or []
+            if not existing:
+                from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+                splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=500, chunk_overlap=50
+                )
+                docs = splitter.create_documents(self._load_seed_texts())
+                self.vector_store.add_documents(docs)
+            print(f"[INFO] ChromaDB em {persist_dir}", flush=True)
+        except Exception as e:
+            print(f"[AVISO] ChromaDB: {e}", flush=True)
+            self.vector_store = None
+
+    def _init_pgvector(self):
+        try:
+            from langchain_postgres import PGVector
+
+            self.vector_store = PGVector(
+                embeddings=self.embeddings,
+                collection_name=self.collection_name,
+                connection=self.connection_string,
+                use_jsonb=True,
+            )
+            self._seed_vector_store_if_empty()
+            print("[INFO] PGVector inicializado.", flush=True)
+        except Exception as e:
+            print(f"[AVISO] PGVector: {e}", flush=True)
+            self.vector_store = None
 
     @property
     def vector_store_type(self) -> str:
-        return "pgvector" if self.vector_store else "direto"
-
-    @property
-    def llm_provider(self) -> str:
-        return "ollama" if self.using_fallback else "openai"
-
-    @property
-    def llm_model(self) -> str:
-        return (
-            settings.OLLAMA_MODEL
-            if self.using_fallback
-            else settings.OPENAI_MODEL
-        )
-
-    def _connect_semantic_cache_index(self):
-        if not self.embeddings:
-            return None
-        try:
-            from redisvl.index import SearchIndex
-
-            probe = self.embeddings.embed_query("cache_probe")
-            dims = len(probe)
-            schema = {
-                "index": {"name": "upi_cache", "prefix": "cache"},
-                "fields": [
-                    {"name": "prompt", "type": "text"},
-                    {"name": "response", "type": "text"},
-                    {
-                        "name": "prompt_vector",
-                        "type": "vector",
-                        "attrs": {
-                            "dims": dims,
-                            "distance_metric": "cosine",
-                            "algorithm": "flat",
-                            "datatype": "float32",
-                        },
-                    },
-                ],
-            }
-            idx = SearchIndex.from_dict(schema, redis_url=settings.REDIS_URL)
-            if not idx.exists():
-                idx.create(overwrite=False)
-            return idx
-        except Exception as e:
-            print(f"[AVISO] Redis: {e}", flush=True)
-            return None
+        if not self.vector_store:
+            return "direto"
+        if self.dev_mode:
+            return "chroma"
+        return "pgvector"
 
     def _lookup_semantic_cache(self, user_input: str) -> Optional[dict]:
-        idx = self._connect_semantic_cache_index()
-        if not idx:
+        if not self.semantic_cache:
             return None
-        try:
-            from redisvl.query import VectorQuery
-
-            vector = self.embeddings.embed_query(user_input)
-            results = idx.query(
-                VectorQuery(
-                    vector=vector,
-                    vector_field_name="prompt_vector",
-                    return_fields=["prompt", "response"],
-                    num_results=1,
-                )
-            )
-            if not results:
-                return None
-            hit = results[0]
-            distance = float(hit.get("vector_distance", 1.0))
-            if distance >= settings.SEMANTIC_CACHE_DISTANCE:
-                return None
-            print(f"[CACHE HIT] dist={distance:.4f}", flush=True)
-            return self._parse_structured_response(hit["response"])
-        except Exception as e:
-            print(f"[AVISO] Leitura cache: {e}", flush=True)
-            return None
+        raw = self.semantic_cache.lookup(user_input)
+        if raw:
+            return self._parse_structured_response(raw)
+        return None
 
     def _store_semantic_cache(self, user_input: str, response_text: str) -> None:
-        idx = self._connect_semantic_cache_index()
-        if not idx:
-            return
-        try:
-            import numpy as np
-
-            vector = self.embeddings.embed_query(user_input)
-            idx.load(
-                [
-                    {
-                        "prompt": user_input,
-                        "response": response_text,
-                        "prompt_vector": np.array(
-                            vector, dtype=np.float32
-                        ).tobytes(),
-                    }
-                ]
-            )
-            print(f"[CACHE STORE] {user_input[:40]!r}...", flush=True)
-        except Exception as e:
-            print(f"[AVISO] Gravação cache: {e}", flush=True)
+        if self.semantic_cache:
+            self.semantic_cache.store(user_input, response_text)
 
     def _rag_context(self, user_input: str) -> str:
         default = (

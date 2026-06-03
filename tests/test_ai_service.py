@@ -16,7 +16,7 @@ def mock_service():
     with patch.object(AIService, "_init_embeddings", return_value=mock_emb), \
          patch.object(AIService, "_init_llm", return_value=mock_llm), \
          patch.object(AIService, "init_knowledge_base"), \
-         patch.object(AIService, "_init_redis_cache"):
+         patch("app.services.ai_service.create_semantic_cache", return_value=None):
         service = AIService()
         service.vector_store = mock_vs
         service.using_fallback = False

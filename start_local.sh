@@ -1,63 +1,45 @@
-#!/bin/bash
-# ─────────────────────────────────────────────────────────────────────────────
-# UPi — Inicialização 100% local (sem Docker, sem chave OpenAI)
-# Requer: Python 3.10+, Ollama instalado (https://ollama.com)
-# ─────────────────────────────────────────────────────────────────────────────
-
+#!/usr/bin/env bash
+# UPi — desenvolvimento sem Docker (Chroma + cache JSON + Ollama + uvicorn)
 set -e
+cd "$(dirname "$0")"
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
+export UPI_DEV_MODE=1
+export OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://localhost:11434}"
+export OLLAMA_MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
 
-echo -e "${BLUE}╔══════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   UPi — Modo Local (Ollama)      ║${NC}"
-echo -e "${BLUE}╚══════════════════════════════════╝${NC}"
+echo "╔══════════════════════════════════════╗"
+echo "║   UPi — DEV local (sem Docker)       ║"
+echo "╚══════════════════════════════════════╝"
 
-# 1. Verifica Ollama
-if ! command -v ollama &> /dev/null; then
-  echo -e "${RED}✗ Ollama não encontrado.${NC}"
-  echo "  Instale em: https://ollama.com  (macOS: brew install ollama)"
+if ! command -v ollama &>/dev/null; then
+  echo "✗ Instale Ollama: https://ollama.com"
   exit 1
 fi
-echo -e "${GREEN}✓ Ollama encontrado${NC}"
 
-# 2. Inicia servidor Ollama (se não estiver rodando)
-if ! curl -s http://localhost:11434/ &> /dev/null; then
-  echo -e "${YELLOW}→ Iniciando Ollama em background...${NC}"
-  ollama serve &> /tmp/ollama.log &
+if ! curl -sf --max-time 2 http://127.0.0.1:11434/ >/dev/null; then
+  echo "→ Iniciando ollama serve..."
+  ollama serve &>/tmp/ollama.log &
   sleep 3
 fi
-echo -e "${GREEN}✓ Ollama rodando em http://localhost:11434${NC}"
 
-# 3. Verifica/baixa o modelo
-MODEL="llama3.2:3b"
+MODEL="${OLLAMA_MODEL}"
 if ! ollama list | grep -q "$MODEL"; then
-  echo -e "${YELLOW}→ Baixando modelo $MODEL (~2 GB, apenas na primeira vez)...${NC}"
+  echo "→ Baixando $MODEL..."
   ollama pull "$MODEL"
 fi
-echo -e "${GREEN}✓ Modelo $MODEL disponível${NC}"
 
-# 4. Verifica dependências Python
-if ! python3 -c "import fastapi" &> /dev/null; then
-  echo -e "${YELLOW}→ Instalando dependências Python...${NC}"
-  pip install -r requirements.txt
+if ! python3 -c "import fastapi" &>/dev/null; then
+  pip install -r requirements-dev.txt
+elif ! python3 -c "import chromadb" &>/dev/null; then
+  pip install chromadb
 fi
-echo -e "${GREEN}✓ Dependências Python ok${NC}"
 
-# 5. Dados NAPSI
-mkdir -p data
-echo -e "${GREEN}✓ Pasta data/ pronta${NC}"
+mkdir -p data data/chroma_db
 
-# 6. Inicia o backend (Postgres+Redis devem estar acessíveis — ou use compose-up)
 echo ""
-echo -e "${BLUE}▶ Iniciando UPi backend em modo local...${NC}"
-echo -e "  LLM:        Ollama ($MODEL)"
-echo -e "  Embeddings: Ollama ($MODEL)"
-echo -e "  Vector DB:  PGVector (DATABASE_URL)"
-echo -e "  Cache:      Redis (REDIS_URL)"
-echo -e "  TTS:        TTS_PROVIDER (padrão gtts)"
-echo ""
-echo -e "${YELLOW}  API disponível em: http://localhost:8000${NC}"
-echo -e "${YELLOW}  Pressione Ctrl+C para encerrar.${NC}"
+echo "  Vector:  Chroma (./data/chroma_db)"
+echo "  Cache:   ./data/dev_semantic_cache.json"
+echo "  API:     http://localhost:8000"
 echo ""
 
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+exec python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
