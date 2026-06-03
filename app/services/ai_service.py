@@ -310,8 +310,11 @@ class AIService:
             response_text = (
                 raw.content if hasattr(raw, "content") else str(raw)
             )
-            self._store_semantic_cache(user_input, response_text)
             result = self._parse_structured_response(response_text)
+            self._store_semantic_cache(
+                user_input,
+                json.dumps(result, ensure_ascii=False),
+            )
         except Exception as e:
             print(f"[LLM OFFLINE] {e}", flush=True)
             result = self._keyword_fallback(user_input)
