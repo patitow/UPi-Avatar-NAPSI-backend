@@ -47,11 +47,18 @@ Para o modo de produção com PostgreSQL, Redis e OpenAI:
    pip install -r requirements.txt
    ```
 
-2. **Suba a infraestrutura**:
-   ```bash
-   docker-compose up -d
+2. **Suba a infraestrutura** (detecta Ollama na máquina):
+   ```powershell
+   # Windows
+   .\compose-up.ps1
    ```
-   *Isso iniciará o PostgreSQL com pgvector, o Redis Stack e o Ollama. O modelo `llama3.2:3b` é baixado automaticamente na primeira execução (~2 GB — aguarde o serviço `ollama` ficar `healthy` antes de usar a API).*
+   ```bash
+   # Linux/macOS
+   bash compose-up.sh
+   ```
+   - Se **Ollama já estiver rodando** em `http://localhost:11434` (app ou `ollama serve`), sobem só **db**, **redis** e **api** — a API usa `host.docker.internal:11434`.
+   - Se **não** houver Ollama no host, o script acrescenta o container **`upi_ollama`**. Na primeira vez: `docker exec -it upi_ollama ollama pull llama3.2:3b`.
+   - Rebuild: `.\compose-up.ps1 -Build` ou `bash compose-up.sh --build`.
 
 3. **Variáveis de Ambiente**:
    Crie um arquivo `.env` na raiz:
