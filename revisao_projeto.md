@@ -8,7 +8,7 @@ Desenvolver o backend de um assistente virtual (avatar) para o NAPSI/UPE, demons
 ```
 Usuário → FastAPI → AIService
                         ├── Redis (cache semântico via RedisVL)
-                        ├── PGVector / ChromaDB (RAG)
+                        ├── PGVector (RAG)
                         ├── OllamaEmbeddings (vetorização local)
                         └── OpenAI GPT-4o-mini → fallback ChatOllama llama3.2:3b
 ```
@@ -25,7 +25,7 @@ Usuário → FastAPI → AIService
 
 ## Decisões de Design
 
-- **Fallback em dupla camada**: vector store (PGVector → ChromaDB) e LLM (OpenAI → Ollama), garantindo operação mesmo sem serviços externos.
+- **Fallback em dupla camada**: LLM (OpenAI → Ollama) e respostas por palavra-chave se o modelo estiver offline.
 - **Cache semântico manual via RedisVL**: evita reprocessamento de perguntas semanticamente equivalentes, reduzindo custo de tokens e latência.
 - **Personalidade regional**: system prompt com expressões pernambucanas para maior acolhimento dos estudantes.
 - **JSON obrigatório na resposta**: permite ao frontend controlar o estado emocional do avatar de forma programática.

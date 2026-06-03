@@ -1,7 +1,9 @@
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.middleware.cors import CORSMiddleware
+import os
 from typing import List, Optional
+
 import pydantic
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.services.ai_service import ai_service
@@ -9,81 +11,95 @@ from app.services.ai_service import ai_service
 app = FastAPI(
     title="UPi Avatar Backend",
     description="Servidor central do UPi - Suporte Psicopedagógico",
-    version="1.0.0"
+    version="1.0.0",
 )
 
-# Configuração de CORS para permitir que o Frontend local (porta 5173) comunique sem bloqueios
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+
+def _parse_cors_origins() -> list[str]:
+    raw = (settings.CORS_ORIGINS or "").strip()
+    if raw == "*":
+        return ["*"]
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    return origins or ["http://localhost:5173"]
+
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=_parse_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 class ChatRequest(pydantic.BaseModel):
     message: str
     user_id: Optional[str] = None
     chat_history: Optional[List[dict]] = []
 
-# ==================== ROTAS DE VERIFICAÇÃO DE ESTADO (HEALTH) ====================
+
+class IngestRequest(pydantic.BaseModel):
+    text: str
+    metadata: dict = {}
+
 
 @app.get("/health")
 def health_check():
-    """Retorna o estado de integridade do sistema exigido pelo painel do UPi."""
     return {
         "status": "healthy",
         "ok": True,
-        "vector_store": ai_service.vector_store_type
+        "vector_store": ai_service.vector_store_type,
+        "llm_provider": ai_service.llm_provider,
+        "llm_model": ai_service.llm_model,
+        "tts_provider": (settings.TTS_PROVIDER or "gtts").lower(),
     }
+
 
 @app.get("/api/health")
 def api_health_check():
-    """Rota de verificação alternativa para manter a compatibilidade com o frontend."""
     return health_check()
 
 
-# ==================== ROTAS DE INTERAÇÃO DO CHAT ====================
-
 async def handle_chat_interaction(payload: ChatRequest):
-    """Encaminha o diálogo do utilizador para o processamento de inteligência artificial e síntese de voz."""
     try:
         formatted_history = []
         if payload.chat_history:
             from langchain_core.messages import HumanMessage, AIMessage
+
             for msg in payload.chat_history:
                 role = msg.get("role", "user")
                 content = msg.get("content", "")
                 if role == "user":
                     formatted_history.append(HumanMessage(content=content))
-                elif role in ["assistant", "ai"]:
+                elif role in ("assistant", "ai"):
                     formatted_history.append(AIMessage(content=content))
 
-        response_data = await ai_service.get_response(
+        return await ai_service.get_response(
             user_input=payload.message,
             chat_history=formatted_history,
-            user_id=payload.user_id
+            user_id=payload.user_id,
         )
-        return response_data
     except Exception as e:
         print(f"[API ERROR]: {e}", flush=True)
         raise HTTPException(status_code=500, detail="Erro interno do servidor")
 
-# Rota direta: Utilizada quando a regra de reescrita do proxy do Vite remove o prefixo '/api'
+
 @app.post("/chat")
-async def chat_interaction_direct(payload: ChatRequest):
-    """Processa o chat na rota base /chat."""
+async def chat_direct(payload: ChatRequest):
     return await handle_chat_interaction(payload)
 
-# Rota com o prefixo: Utilizada em chamadas diretas de desenvolvimento
+
 @app.post("/api/chat")
-async def chat_interaction_api(payload: ChatRequest):
-    """Processa o chat na rota /api/chat."""
+async def chat_api(payload: ChatRequest):
     return await handle_chat_interaction(payload)
+
+
+@app.post("/ingest")
+async def ingest(payload: IngestRequest):
+    await ai_service.add_document(payload.text, payload.metadata)
+    return {"status": "success", "message": "Documento indexado no PGVector."}
+
+
+@app.post("/api/ingest")
+async def ingest_api(payload: IngestRequest):
+    return await ingest(payload)

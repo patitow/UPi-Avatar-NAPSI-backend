@@ -33,7 +33,7 @@ bash start_local.sh
 O script verifica/instala tudo automaticamente:
 - Inicia o Ollama se não estiver rodando
 - Baixa o modelo `llama3.2:3b` se necessário (~2 GB, só na primeira vez)
-- Usa **ChromaDB local** como vector store (sem PostgreSQL)
+- Requer **Postgres+pgvector** e **Redis** locais (ou use Docker via `compose-up`)
 - Inicia o backend sem precisar de `OPENAI_API_KEY`
 
 > O frontend exibirá **"IA Local · llama3.2:3b"** em roxo quando esse modo estiver ativo.
@@ -60,13 +60,10 @@ Para o modo de produção com PostgreSQL, Redis e OpenAI:
    - Se **não** houver Ollama no host, o script acrescenta o container **`upi_ollama`**. Na primeira vez: `docker exec -it upi_ollama ollama pull llama3.2:3b`.
    - Rebuild: `.\compose-up.ps1 -Build` ou `bash compose-up.sh --build`.
 
-3. **Variáveis de Ambiente**:
-   Crie um arquivo `.env` na raiz:
-   ```env
-   OPENAI_API_KEY=sua_chave_aqui
-   DATABASE_URL=postgresql+psycopg2://upi_user:upi_password@localhost:5432/upi_db
-   REDIS_URL=redis://localhost:6379
-   ```
+3. **Variáveis de Ambiente** — copie `.env.example` para `.env`:
+   - `TTS_PROVIDER=gtts` | `openai` | `none`
+   - `CORS_ORIGINS` — URLs do front separadas por vírgula (ou `*` em dev)
+   - `OLLAMA_MODEL=llama3.2:3b` alinhado ao modelo baixado no Ollama
 
 ## 📂 Como Alimentar o UPi (Ingestão)
 

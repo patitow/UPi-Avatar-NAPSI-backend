@@ -43,17 +43,18 @@ if ! python3 -c "import fastapi" &> /dev/null; then
 fi
 echo -e "${GREEN}✓ Dependências Python ok${NC}"
 
-# 5. Cria diretório de dados locais
-mkdir -p data/chroma_db
-echo -e "${GREEN}✓ Diretório data/chroma_db pronto${NC}"
+# 5. Dados NAPSI
+mkdir -p data
+echo -e "${GREEN}✓ Pasta data/ pronta${NC}"
 
-# 6. Inicia o backend (sem OPENAI_API_KEY → usa Ollama automaticamente)
+# 6. Inicia o backend (Postgres+Redis devem estar acessíveis — ou use compose-up)
 echo ""
 echo -e "${BLUE}▶ Iniciando UPi backend em modo local...${NC}"
 echo -e "  LLM:        Ollama ($MODEL)"
 echo -e "  Embeddings: Ollama ($MODEL)"
-echo -e "  Vector DB:  ChromaDB local (./data/chroma_db)"
-echo -e "  Redis:      desativado (cache semântico off)"
+echo -e "  Vector DB:  PGVector (DATABASE_URL)"
+echo -e "  Cache:      Redis (REDIS_URL)"
+echo -e "  TTS:        TTS_PROVIDER (padrão gtts)"
 echo ""
 echo -e "${YELLOW}  API disponível em: http://localhost:8000${NC}"
 echo -e "${YELLOW}  Pressione Ctrl+C para encerrar.${NC}"
