@@ -1,12 +1,22 @@
-# UPi backend — desenvolvimento sem Docker (Chroma + cache JSON + Ollama)
+# UPi backend - desenvolvimento sem Docker (Chroma + cache JSON + Ollama)
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 $env:UPI_DEV_MODE = "1"
 $env:OLLAMA_BASE_URL = "http://localhost:11434"
-$env:OLLAMA_MODEL = "llama3.2:3b"
 
-Write-Host "UPi — modo DEV (sem Postgres/Redis)" -ForegroundColor Cyan
+if (Test-Path ".env") {
+    Get-Content ".env" | ForEach-Object {
+        if ($_ -match '^\s*OLLAMA_MODEL=(.+)$') {
+            $env:OLLAMA_MODEL = $matches[1].Trim().Trim('"').Trim("'")
+        }
+    }
+}
+if (-not $env:OLLAMA_MODEL) {
+    $env:OLLAMA_MODEL = "llama3.2:3b"
+}
+
+Write-Host "UPi - modo DEV (sem Postgres/Redis)" -ForegroundColor Cyan
 
 if (-not (Get-Command ollama -ErrorAction SilentlyContinue)) {
     Write-Error "Instale Ollama: https://ollama.com"
@@ -20,7 +30,7 @@ try {
     Start-Sleep -Seconds 3
 }
 
-$model = "llama3.2:3b"
+$model = $env:OLLAMA_MODEL
 if (-not (ollama list 2>$null | Select-String $model)) {
     Write-Host "Baixando $model (primeira vez)..." -ForegroundColor Yellow
     ollama pull $model
@@ -35,7 +45,9 @@ if (-not (python -c "import fastapi" 2>$null)) {
 New-Item -ItemType Directory -Force -Path data, data/chroma_db | Out-Null
 
 Write-Host ""
+Write-Host "  Modelo:  $env:OLLAMA_MODEL (LLM + embeddings)" -ForegroundColor Green
 Write-Host "  Vector:  Chroma (data/chroma_db)" -ForegroundColor Green
+Write-Host "  Dica:    ao trocar de modelo, apague data/chroma_db e data/dev_semantic_cache.json" -ForegroundColor DarkYellow
 Write-Host "  Cache:   data/dev_semantic_cache.json" -ForegroundColor Green
 Write-Host "  API:     http://localhost:8000" -ForegroundColor Green
 Write-Host ""

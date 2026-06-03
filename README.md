@@ -65,10 +65,10 @@ Para o modo de produção com PostgreSQL, Redis e OpenAI:
    - Se **não** houver Ollama no host, o script acrescenta o container **`upi_ollama`**. Na primeira vez: `docker exec -it upi_ollama ollama pull llama3.2:3b`.
    - Rebuild: `.\compose-up.ps1 -Build` ou `bash compose-up.sh --build`.
 
-3. **Variáveis de Ambiente** — copie `.env.example` para `.env`:
+3. **Variáveis de Ambiente** — copie `.env.example` para `.env` (o repositório **nunca** apaga nem sobrescreve o seu `.env`):
    - `TTS_PROVIDER=gtts` | `openai` | `none`
    - `CORS_ORIGINS` — URLs do front separadas por vírgula (ou `*` em dev)
-   - `OLLAMA_MODEL=llama3.2:3b` alinhado ao modelo baixado no Ollama
+   - `OLLAMA_MODEL=llama3.2:3b` no `.env` (ou outro modelo, ex.: `qwen2.5:7b`, só na tua máquina)
 
 ## 📂 Como Alimentar o UPi (Ingestão)
 
@@ -90,7 +90,10 @@ A API estará disponível em `http://localhost:8000`.
 
 ## 🧪 Testes
 
-Execute a suíte de testes unitários:
+**Unitários e API (Python):**
 ```bash
 pytest
+python scripts/validate_dev_stack.py
 ```
+
+**E2E no browser:** no repositório do front (`UPi-Avatar-NAPSI`), com a API já rodando aqui em `:8000` — ver `e2e/README.md` no front.

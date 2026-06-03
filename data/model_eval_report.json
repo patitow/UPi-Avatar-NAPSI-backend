@@ -1,73 +1,37 @@
 [
   {
-    "model": "llama3.2:3b",
+    "model": "qwen2.5:7b",
     "passed": 4,
     "total": 4,
-    "avg_latency_s": 2.0,
+    "avg_latency_s": 4.2,
     "cases": [
       {
         "id": "onde_fica",
         "ok": true,
-        "latency_s": 3.9,
-        "emotion": "happy",
-        "response": "Massa! O NAPSI fica no Bloco A, Sala 12, de Segunda a Sexta das 8h às 17h."
+        "latency_s": 4.8,
+        "emotion": "neutral",
+        "response": "PARA agendar, preencha o formulário no site da POLI/UPE ou envie um e-mail para napsi@poli.br com suas informações e a descrição da demanda. Visse? Também pode comparecer ao Bloco A, Sala 12."
       },
       {
         "id": "agendar",
         "ok": true,
-        "latency_s": 1.4,
+        "latency_s": 4.2,
         "emotion": "neutral",
-        "response": "Para agendar um atendimento, o aluno deve preencher o formulário de solicitação disponível no site oficial da POLI/UPE (www.poli.br) na seção NAPSI, ou enviar um e-mail para napsi@poli.br informando nome completo, matrícula e breve descrição da demanda."
+        "response": "PARA agendar, preencha o formulário no site da POLI/UPE ou envie um e-mail para napsi@poli.br com suas informações e a descrição da demanda. Visse? Também pode comparecer ao Bloco A, Sala 12."
       },
       {
         "id": "servicos",
         "ok": true,
-        "latency_s": 1.3,
-        "emotion": "happy",
-        "response": "O NAPSI/UPE oferece Atendimento psicopedagógico individual, Atendimento psicológico e Atendimento social, além de Adaptações razoáveis e Grupos de apoio e oficinas."
-      },
-      {
-        "id": "tea",
-        "ok": true,
-        "latency_s": 1.3,
-        "emotion": "happy",
-        "response": "Eita, sim! O NAPSI/UPE oferece apoio especializado para estudantes com Transtorno do Tempo Extraordinário (TEA), com plano de apoio individualizado e aconselhamento."
-      }
-    ]
-  },
-  {
-    "model": "llama3.1:8b",
-    "passed": 4,
-    "total": 4,
-    "avg_latency_s": 0.1,
-    "cases": [
-      {
-        "id": "onde_fica",
-        "ok": true,
-        "latency_s": 0.1,
-        "emotion": "happy",
-        "response": "Massa! O NAPSI fica no Bloco A, Sala 12, de Segunda a Sexta das 8h às 17h."
-      },
-      {
-        "id": "agendar",
-        "ok": true,
-        "latency_s": 0.1,
+        "latency_s": 4.5,
         "emotion": "neutral",
-        "response": "Para agendar um atendimento, o aluno deve preencher o formulário de solicitação disponível no site oficial da POLI/UPE (www.poli.br) na seção NAPSI, ou enviar um e-mail para napsi@poli.br informando nome completo, matrícula e breve descrição da demanda."
-      },
-      {
-        "id": "servicos",
-        "ok": true,
-        "latency_s": 0.1,
-        "emotion": "happy",
-        "response": "O NAPSI/UPE oferece Atendimento psicopedagógico individual, Atendimento psicológico e Atendimento social, além de Adaptações razoáveis e Grupos de apoio e oficinas."
+        "response": "PARA agendar, preencha o formulário no site da POLI/UPE ou envie um e-mail para napsi@poli.br com suas informações e a descrição da demanda. Visse? Também pode comparecer ao Bloco A, Sala 12."
       },
       {
         "id": "tea",
         "ok": true,
-        "latency_s": 0.1,
-        "emotion": "happy",
-        "response": "Eita, sim! O NAPSI/UPE oferece apoio especializado para estudantes com Transtorno do Tempo Extraordinário (TEA), com plano de apoio individualizado e aconselhamento."
+        "latency_s": 3.5,
+        "emotion": "neutral",
+        "response": "PARA agendar, preencha o formulário no site da POLI/UPE ou envie um e-mail para napsi@poli.br com suas informações e a descrição da demanda. Visse? Também pode comparecer ao Bloco A, Sala 12."
       }
     ]
   }

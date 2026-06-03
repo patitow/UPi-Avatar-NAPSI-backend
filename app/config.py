@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # true = Chroma + cache JSON em disco, sem Postgres/Redis (desenvolvimento local)
     UPI_DEV_MODE: bool = _env_bool("UPI_DEV_MODE")
 
-    OPENAI_MODEL: str = "gpt-4o-mini"
+    OPENAI_MODEL: str = "gpt-5-nano"
     OLLAMA_MODEL: str = "llama3.2:3b"
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 

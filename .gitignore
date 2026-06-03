@@ -227,3 +227,4 @@ data/*.pdf
 data/*.txt
 data/*.md
 !data/napsi_info.txt
+data/chroma_eval_qwen2.5_7b/
