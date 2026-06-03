@@ -10,7 +10,7 @@
         "ok": true,
         "latency_s": 3.9,
         "emotion": "happy",
-        "response": "Massa! O NAPSI fica no Bloco A, Sala 12, de seg a sex das 8h às 17h."
+        "response": "Massa! O NAPSI fica no Bloco A, Sala 12, de Segunda a Sexta das 8h às 17h."
       },
       {
         "id": "agendar",
@@ -46,7 +46,7 @@
         "ok": true,
         "latency_s": 0.1,
         "emotion": "happy",
-        "response": "Massa! O NAPSI fica no Bloco A, Sala 12, de seg a sex das 8h às 17h."
+        "response": "Massa! O NAPSI fica no Bloco A, Sala 12, de Segunda a Sexta das 8h às 17h."
       },
       {
         "id": "agendar",

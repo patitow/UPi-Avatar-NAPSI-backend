@@ -7,10 +7,11 @@ from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 
 from app.config import settings
 from app.services.semantic_cache import create_semantic_cache
+from app.services.portuguese import polish_portuguese
 from app.services.tts import synthesize_speech
 
 DEFAULT_UPI_PROMPT = """Você é o UPi, o assistente virtual oficial do NAPSI (Núcleo de Apoio Psicopedagógico e Suporte Estudantil) da POLI/UPE.
-Sua personalidade é extremamente acolhedora, empática, paciente e muito simpática. Como você está em Pernambuco, use expressões regionais como "oxe", "visse", "massa", "eita" de forma natural e carinhosa.
+Sua personalidade é acolhedora e simpática. Use "oxe", "visse", "eita", "massa" com moderação. Escreva em português brasileiro correto (está, para, você, às) — nunca "tá", "pra", "tô". Em saudações, responda curto, sem discurso institucional.
 
 Sempre responda estritamente em formato JSON com as chaves abaixo (não use nenhuma outra chave e não coloque textos fora do bloco JSON):
 {
@@ -44,12 +45,31 @@ VALID_EMOTIONS = {
 }
 
 FALLBACK_ANSWERS = {
-    "onde fica": "Oxe, o NAPSI fica no Bloco A, Sala 12, visse? Pode passar lá de segunda a sexta, das 8h às 17h!",
-    "agendar": "Pra agendar seu atendimento, você pode mandar um e-mail para napsi@poli.br ou falar diretamente na coordenação do Bloco A, Sala 12!",
-    "tea": "O NAPSI oferece suporte psicopedagógico especializado e adaptado para todos os estudantes, incluindo alunos com TEA (Transtorno do Espectro Autista).",
-    "serviço": "Oferecemos apoio psicopedagógico, acolhimento psicossocial, auxílio na adaptação acadêmica e orientação aos estudantes da Poli!",
-    "oi": "Oi! Sou o UPi, assistente virtual do NAPSI aqui na POLI/UPE! Massa demais ter você aqui, visse? Como posso te ajudar hoje?",
+    "onde fica": (
+        "Oxe, o NAPSI fica no Bloco A, Sala 12, visse? "
+        "O atendimento é de segunda a sexta, das 8h às 17h."
+    ),
+    "agendar": (
+        "Para agendar seu atendimento, envie um e-mail para napsi@poli.br "
+        "ou procure a equipe no Bloco A, Sala 12."
+    ),
+    "tea": (
+        "O NAPSI oferece suporte psicopedagógico especializado para todos os estudantes, "
+        "incluindo alunos com TEA (Transtorno do Espectro Autista)."
+    ),
+    "serviço": (
+        "Oferecemos apoio psicopedagógico, acolhimento psicossocial, "
+        "auxílio na adaptação acadêmica e orientação aos estudantes da POLI."
+    ),
 }
+
+_GREETING_RE = re.compile(
+    r"^\s*(oi|olá|ola|e\s*a[ií]|eai|hey|bom\s+dia|boa\s+tarde|boa\s+noite)\b",
+    re.IGNORECASE,
+)
+_GREETING_EXTRA = frozenset(
+    {"oi", "ola", "olá", "eai", "hey", "lindo", "linda", "tudo", "bem", "beleza"}
+)
 
 
 class AIService:
@@ -261,6 +281,37 @@ class AIService:
         messages.append(HumanMessage(content=user_input))
         return messages
 
+    def _is_greeting(self, user_input: str) -> bool:
+        text = user_input.strip()
+        if not text or len(text) > 80:
+            return False
+        if _GREETING_RE.match(text):
+            return True
+        tokens = re.findall(r"[a-zà-ú0-9]+", text.lower())
+        if not tokens or len(tokens) > 6:
+            return False
+        return all(t in _GREETING_EXTRA for t in tokens)
+
+    def _greeting_response(self, user_input: str) -> dict:
+        text = (
+            "Oi! Sou o UPi, assistente do NAPSI na POLI/UPE — massa falar com você, visse! "
+            "Quer saber sobre atendimento, localização ou serviços do núcleo?"
+        )
+        return {"response": text, "emotion": "happy"}
+
+    def _sanitize_response_tone(self, text: str) -> str:
+        """Evita apelidos íntimos na resposta (lindo, linda, amor, etc.)."""
+        if not text:
+            return text
+        banned = re.compile(
+            r"\b(lindo|linda|amor|mozão|mozao|bb|bebê|bebe|querid[oa]|gatinh[oa])\b",
+            re.IGNORECASE,
+        )
+        cleaned = banned.sub("", text)
+        cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
+        cleaned = re.sub(r"\s+([,.!?])", r"\1", cleaned)
+        return cleaned or text
+
     def _keyword_fallback(self, user_input: str) -> dict:
         lower = user_input.lower()
         for key, val in FALLBACK_ANSWERS.items():
@@ -268,8 +319,8 @@ class AIService:
                 return {"response": val, "emotion": "calm"}
         return {
             "response": (
-                "Oxe, tive um probleminha ao conectar com a IA agora, mas o NAPSI "
-                "segue no Bloco A, Sala 12, para te acolher!"
+                "Oxe, tive um problema ao conectar com a IA agora, mas o NAPSI "
+                "segue no Bloco A, Sala 12, para acolher você!"
             ),
             "emotion": "calm",
         }
@@ -287,6 +338,9 @@ class AIService:
         if result.get("emotion") not in VALID_EMOTIONS:
             result["emotion"] = "neutral"
 
+        result["response"] = polish_portuguese(
+            self._sanitize_response_tone(str(result.get("response", "")))
+        )
         result["audio"] = synthesize_speech(result["response"])
         return result
 
@@ -296,6 +350,9 @@ class AIService:
         chat_history: List[BaseMessage] = None,
         user_id: str = None,
     ):
+        if self._is_greeting(user_input):
+            return self._finalize(self._greeting_response(user_input))
+
         cached = self._lookup_semantic_cache(user_input)
         if cached and cached.get("response"):
             return self._finalize(cached)

@@ -30,7 +30,7 @@ async def test_get_response(mock_service):
     )
     with patch.object(mock_service, "_lookup_semantic_cache", return_value=None), \
          patch("app.services.ai_service.synthesize_speech", return_value=""):
-        out = await mock_service.get_response("Olá")
+        out = await mock_service.get_response("Onde fica o NAPSI?")
     assert out["emotion"] == "happy"
     mock_service.llm.invoke.assert_called_once()
 
@@ -42,9 +42,36 @@ async def test_cache_hit(mock_service):
         "_lookup_semantic_cache",
         return_value={"response": "Do cache", "emotion": "calm"},
     ), patch("app.services.ai_service.synthesize_speech", return_value="audio"):
-        out = await mock_service.get_response("Oi")
+        out = await mock_service.get_response("Como agendar atendimento?")
     assert out["response"] == "Do cache"
     mock_service.llm.invoke.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_greeting_oi_lindo_skips_llm_and_cache(mock_service):
+    with patch.object(
+        mock_service,
+        "_lookup_semantic_cache",
+        return_value={"response": "Resposta errada do cache", "emotion": "calm"},
+    ), patch("app.services.ai_service.synthesize_speech", return_value=""):
+        out = await mock_service.get_response("oi lindo")
+    assert "UPi" in out["response"]
+    assert "bem-vindo" not in out["response"].lower()
+    assert "saúde mental" not in out["response"].lower()
+    lower = out["response"].lower()
+    assert "lindo" not in lower
+    assert "linda" not in lower
+    mock_service.llm.invoke.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_sanitize_strips_intimate_terms(mock_service):
+    raw = mock_service._sanitize_response_tone(
+        "Oi lindo! Massa demais, querida, visse?"
+    )
+    assert "lindo" not in raw.lower()
+    assert "linda" not in raw.lower()
+    assert "querida" not in raw.lower()
 
 
 @pytest.mark.asyncio
@@ -52,5 +79,5 @@ async def test_llm_fallback(mock_service):
     mock_service.llm.invoke.side_effect = Exception("down")
     with patch.object(mock_service, "_lookup_semantic_cache", return_value=None), \
          patch("app.services.ai_service.synthesize_speech", return_value=""):
-        out = await mock_service.get_response("oi")
+        out = await mock_service.get_response("onde fica o napsi")
     assert "NAPSI" in out["response"] or "UPi" in out["response"]
