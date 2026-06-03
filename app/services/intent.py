@@ -219,9 +219,9 @@ _RESPONSE_CHECKS: dict[Intent, re.Pattern[str]] = {
     "scheduling": re.compile(r"\b(agendar|e-?mail|formul[aá]rio|napsi@)\b", re.I),
 
     "services": re.compile(
-
-        r"\b(psicoped|psicol[oó]g|acolhimento|servi[cç]o|apoio)\b", re.I
-
+        r"\b(psicoped|psicol[oó]g|acolhimento|servi[cç]o|apoio|adapta|prova|"
+        r"tempo\s+adicional|laudo|protocolo|napsi@)\b",
+        re.I,
     ),
 
     "tea": re.compile(r"\b(tea|autis|espectro)\b", re.I),

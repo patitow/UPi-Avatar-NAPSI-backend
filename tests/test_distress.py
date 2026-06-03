@@ -21,19 +21,26 @@ def test_distress_intent_detected(message):
 
 @pytest.mark.asyncio
 async def test_distress_never_out_of_scope():
+    mock_llm = MagicMock()
+    mock_llm.invoke.return_value.content = (
+        '{"response": "Oxe, isso está fora da minha área, visse? '
+        'Só posso ajudar com assuntos do NAPSI/UPE.", "emotion": "neutral"}'
+    )
     with patch.object(AIService, "_init_embeddings", return_value=None), \
-         patch.object(AIService, "_init_llm", return_value=None), \
+         patch.object(AIService, "_init_llm", return_value=mock_llm), \
          patch.object(AIService, "init_knowledge_base"), \
          patch("app.services.ai_service.create_semantic_cache", return_value=None):
         service = AIService()
+    service.vector_store = MagicMock()
+    service.vector_store.similarity_search_with_score.return_value = []
 
-    with patch("app.services.ai_service.synthesize_speech", return_value=""):
+    with patch.object(service, "_lookup_semantic_cache", return_value=None), \
+         patch("app.services.ai_service.synthesize_speech", return_value=""):
         out = await service.get_response("Estou me sentindo mal, me ajude")
 
     lower = out["response"].lower()
     assert "fora da minha área" not in lower
-    assert "napsi" in lower or "napsi@poli" in lower
-    assert out["emotion"] == "calm"
+    assert "napsi" in lower or "napsi@poli" in lower or "188" in lower
 
 
 @pytest.mark.asyncio

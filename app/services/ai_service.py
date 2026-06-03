@@ -80,13 +80,13 @@ FALLBACK_ANSWERS = {
         "e orientação aos estudantes da POLI, visse?"
     ),
     "acolhimento": (
-        "Sinto muito que você esteja passando por isso, visse? O NAPSI acolhe estudantes "
+        "Sinto muito que você esteja passando por isso. O NAPSI acolhe estudantes "
         "em sofrimento com atendimento psicológico e psicossocial — escreva para napsi@poli.br "
         "ou procure o Bloco A, Sala 12, de segunda a sexta, das 8h às 17h. "
-        "Se a angústia for muito forte agora, o CVV atende no 188 (24h); em emergência médica, 192 (SAMU)."
+        "Se a angústia for muito forte agora, ligue 188 (CVV, 24h); em emergência médica, 192 (SAMU)."
     ),
     "crise": (
-        "Sinto muito que você esteja passando por um momento tão difícil — sua vida importa, visse? "
+        "Sinto muito que você esteja passando por um momento tão difícil — sua vida importa. "
         "Ligue agora ao CVV 188 (24h, gratuito) ou ao SAMU 192 se houver risco imediato. "
         "O NAPSI também acolhe estudantes: napsi@poli.br ou Bloco A, Sala 12, de segunda a sexta, das 8h às 17h."
     ),
@@ -147,14 +147,16 @@ class AIService:
             return None
 
     def _init_llm(self):
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = (settings.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY") or "").strip()
         if api_key:
             try:
                 from langchain_openai import ChatOpenAI
 
                 self.using_fallback = False
                 return ChatOpenAI(
-                    model=settings.OPENAI_MODEL, temperature=0.7
+                    model=settings.OPENAI_MODEL,
+                    temperature=0.7,
+                    api_key=api_key,
                 )
             except Exception as e:
                 print(
@@ -462,14 +464,15 @@ class AIService:
         chat_history: List[BaseMessage] = None,
         user_id: str = None,
     ):
-        if self._is_greeting(user_input):
-            return self._finalize(self._greeting_response(user_input))
+        if not settings.UPI_DISABLE_REGEX_ROUTES:
+            if self._is_greeting(user_input):
+                return self._finalize(self._greeting_response(user_input))
 
-        if is_crisis_message(user_input):
-            return self._finalize(self._crisis_response(user_input))
+            if is_crisis_message(user_input):
+                return self._finalize(self._crisis_response(user_input))
 
-        if is_distress_message(user_input):
-            return self._finalize(self._distress_response(user_input))
+            if is_distress_message(user_input):
+                return self._finalize(self._distress_response(user_input))
 
         cached = self._lookup_semantic_cache(user_input)
         if cached and cached.get("response"):

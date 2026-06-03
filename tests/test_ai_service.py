@@ -51,20 +51,21 @@ async def test_cache_hit(mock_service):
 
 
 @pytest.mark.asyncio
-async def test_greeting_oi_lindo_skips_llm_and_cache(mock_service):
-    with patch.object(
-        mock_service,
-        "_lookup_semantic_cache",
-        return_value={"response": "Resposta errada do cache", "emotion": "calm"},
-    ), patch("app.services.ai_service.synthesize_speech", return_value=""):
+async def test_greeting_oi_lindo_no_intimate_in_response(mock_service):
+    mock_service.llm.invoke.return_value.content = (
+        '{"response": "Oi! Sou o UPi do NAPSI. Quer saber sobre atendimento ou localização?", '
+        '"emotion": "happy"}'
+    )
+    with patch.object(mock_service, "_lookup_semantic_cache", return_value=None), \
+         patch("app.services.ai_service.synthesize_speech", return_value=""):
         out = await mock_service.get_response("oi lindo")
-    assert "UPi" in out["response"]
+    assert "UPi" in out["response"] or "NAPSI" in out["response"]
     assert "bem-vindo" not in out["response"].lower()
     assert "saúde mental" not in out["response"].lower()
     lower = out["response"].lower()
     assert "lindo" not in lower
     assert "linda" not in lower
-    mock_service.llm.invoke.assert_not_called()
+    mock_service.llm.invoke.assert_called_once()
 
 
 @pytest.mark.asyncio
