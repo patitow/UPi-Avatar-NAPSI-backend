@@ -19,24 +19,40 @@ CASES = [
     {
         "id": "onde_fica",
         "message": "Onde fica o NAPSI?",
-        "patterns": [r"bloco", r"sala", r"napsi"],
+        "required": [r"bloco", r"sala"],
+        "forbidden": [r"tempo\s+extraordin", r"transtorno\s+do\s+tempo"],
     },
     {
         "id": "agendar",
         "message": "Como agendar um atendimento?",
-        "patterns": [r"napsi", r"e-?mail", r"agendar", r"contato"],
+        "required": [r"agendar|e-?mail|formul[aá]rio", r"napsi"],
+        "forbidden": [],
     },
     {
         "id": "servicos",
         "message": "Quais serviços o NAPSI oferece?",
-        "patterns": [r"napsi", r"apoio", r"psicoped", r"acolhimento"],
+        "required": [r"psicoped|psicol[oó]g|acolhimento|servi[cç]o"],
+        "forbidden": [r"tempo\s+extraordin"],
     },
     {
         "id": "tea",
         "message": "O NAPSI apoia alunos com TEA?",
-        "patterns": [r"tea", r"autis", r"napsi", r"apoio"],
+        "required": [r"tea|autis|espectro"],
+        "forbidden": [r"tempo\s+extraordin", r"transtorno\s+do\s+tempo"],
     },
 ]
+
+
+def case_passes(case: dict, text: str) -> bool:
+    import re
+
+    lower = text.lower()
+    if not all(re.search(p, lower) for p in case["required"]):
+        return False
+    for bad in case.get("forbidden", []):
+        if re.search(bad, lower):
+            return False
+    return True
 
 # Modelos a comparar (ajuste via env EVAL_MODELS=csv)
 DEFAULT_MODELS = [
@@ -111,8 +127,6 @@ def chat(message: str, timeout: float = 120.0) -> dict:
 
 
 def eval_model(model: str) -> dict:
-    import re
-
     proc = start_server(model)
     results: List[CaseResult] = []
     try:
@@ -124,10 +138,7 @@ def eval_model(model: str) -> dict:
                 text = str(out.get("response", ""))
                 emo = str(out.get("emotion", ""))
                 lat = time.time() - t0
-                lower = text.lower()
-                ok = all(re.search(p, lower) for p in case["patterns"][:2]) or any(
-                    re.search(p, lower) for p in case["patterns"]
-                )
+                ok = case_passes(case, text)
                 results.append(
                     CaseResult(case["id"], ok, lat, text[:300], emo)
                 )
@@ -178,7 +189,8 @@ def main() -> int:
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
     print(f"\nRelatório: {out_path}")
-    return 0
+    failed = sum(1 for row in report if row["passed"] < row["total"])
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

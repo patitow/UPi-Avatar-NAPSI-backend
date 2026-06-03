@@ -27,7 +27,8 @@ _REPLACEMENTS: list[tuple[re.Pattern[str], str]] = [
 
 def _capitalize_after_punctuation(text: str) -> str:
     def upper_first(m: re.Match[str]) -> str:
-        return m.group(1) + m.group(2).upper()
+        word = m.group(2)
+        return m.group(1) + word[0].upper() + word[1:].lower()
 
     text = re.sub(
         r"(^|[.!?]\s+)(para|está|estou|não|oxe|oi|eita)\b",

@@ -51,6 +51,16 @@ def test_create_semantic_cache_dev(mock_embeddings):
     assert isinstance(backend, DevSemanticCache)
 
 
+def test_dev_cache_miss_different_intent(tmp_path, mock_embeddings):
+    cache_file = tmp_path / "cache.json"
+    cache = DevSemanticCache(
+        mock_embeddings, str(cache_file), distance_threshold=0.99
+    )
+    cache.store("Como agendar atendimento?", '{"response": "E-mail napsi@poli.br"}')
+    mock_embeddings.embed_query.return_value = [1.0, 0.0, 0.0]
+    assert cache.lookup("Onde fica o NAPSI?") is None
+
+
 def test_create_semantic_cache_no_embeddings():
     assert (
         create_semantic_cache(

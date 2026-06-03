@@ -48,6 +48,31 @@ def test_chat_api_route(client):
     assert "response" in r.json()
 
 
+def test_chat_forwards_history():
+    with patch(
+        "app.main.ai_service.get_response",
+        new_callable=AsyncMock,
+        return_value={"response": "ok", "emotion": "happy", "audio": ""},
+    ) as get_response:
+        from app.main import app
+
+        client = TestClient(app)
+        r = client.post(
+            "/chat",
+            json={
+                "message": "E o horário?",
+                "chat_history": [
+                    {"role": "user", "content": "Onde fica o NAPSI?"},
+                    {"role": "assistant", "content": "Bloco A, Sala 12."},
+                ],
+            },
+        )
+        assert r.status_code == 200
+        get_response.assert_awaited_once()
+        history = get_response.await_args.kwargs.get("chat_history") or []
+        assert len(history) == 2
+
+
 def test_ingest(client):
     with patch("app.main.ai_service.add_document", new_callable=AsyncMock) as add:
         r = client.post("/ingest", json={"text": "NAPSI sala 12", "metadata": {}})

@@ -80,6 +80,10 @@ O UPi aprende a partir de documentos na pasta `data/`.
    ```
    *O script utiliza `RecursiveCharacterTextSplitter` para manter a coerência semântica dos parágrafos.*
 
+Após trocar de modelo Ollama ou atualizar documentos, apague `data/chroma_db` e `data/dev_semantic_cache.json` (modo dev) para o RAG e o cache refletirem o conteúdo novo.
+
+**Qualidade das respostas:** o cache semântico agrupa por **intenção** (local, agendamento, serviços, TEA). Rode `python scripts/evaluate_ollama_models.py` com `EVAL_MODELS=seu_modelo` para validar os quatro cenários NAPSI.
+
 ## ⚙️ Execução
 
 Inicie o servidor de desenvolvimento:

@@ -7,6 +7,12 @@ from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 
 from app.config import settings
 from app.services.semantic_cache import create_semantic_cache
+from app.services.intent import (
+    classify_intent,
+    fallback_context,
+    rag_search_query,
+    response_matches_intent,
+)
 from app.services.portuguese import polish_portuguese
 from app.services.tts import synthesize_speech
 
@@ -42,6 +48,13 @@ VALID_EMOTIONS = {
     "calm",
     "surprised",
     "confused",
+}
+
+_INTENT_FALLBACK_KEY: dict[str, tuple[str, str]] = {
+    "location": ("onde fica", "calm"),
+    "scheduling": ("agendar", "calm"),
+    "tea": ("tea", "happy"),
+    "services": ("serviço", "calm"),
 }
 
 FALLBACK_ANSWERS = {
@@ -247,8 +260,17 @@ class AIService:
         if not self.semantic_cache:
             return None
         raw = self.semantic_cache.lookup(user_input)
-        if raw:
-            return self._parse_structured_response(raw)
+        if not raw:
+            return None
+        parsed = self._parse_structured_response(raw)
+        intent = classify_intent(user_input)
+        response_text = str(parsed.get("response", ""))
+        if response_text and response_matches_intent(response_text, intent):
+            return parsed
+        print(
+            f"[CACHE SKIP] resposta não combina com intenção '{intent}'",
+            flush=True,
+        )
         return None
 
     def _store_semantic_cache(self, user_input: str, response_text: str) -> None:
@@ -256,16 +278,28 @@ class AIService:
             self.semantic_cache.store(user_input, response_text)
 
     def _rag_context(self, user_input: str) -> str:
-        default = (
-            "O NAPSI oferece atendimento psicopedagógico no Bloco A, Sala 12, "
-            "de segunda a sexta, das 8h às 17h."
-        )
+        intent = classify_intent(user_input)
+        default = fallback_context(intent)
         if not self.vector_store:
             return default
+        max_distance = float(os.getenv("RAG_MAX_DISTANCE", "0.65"))
         try:
-            docs = self.vector_store.similarity_search(user_input, k=3)
-            if docs:
-                return "\n".join(d.page_content for d in docs)
+            search_fn = getattr(
+                self.vector_store, "similarity_search_with_score", None
+            )
+            query = rag_search_query(user_input)
+            if search_fn:
+                scored = search_fn(query, k=5)
+                chunks = [
+                    doc.page_content
+                    for doc, dist in scored
+                    if dist <= max_distance and doc.page_content.strip()
+                ]
+            else:
+                docs = self.vector_store.similarity_search(query, k=3)
+                chunks = [d.page_content for d in docs if d.page_content.strip()]
+            if chunks:
+                return "\n\n".join(chunks[:2])
         except Exception as e:
             print(f"[AVISO] RAG: {e}", flush=True)
         return default
@@ -311,6 +345,22 @@ class AIService:
         cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
         cleaned = re.sub(r"\s+([,.!?])", r"\1", cleaned)
         return cleaned or text
+
+    def _apply_intent_fallback(self, user_input: str, result: dict) -> dict:
+        intent = classify_intent(user_input)
+        text = str(result.get("response", ""))
+        if response_matches_intent(text, intent):
+            return result
+        mapped = _INTENT_FALLBACK_KEY.get(intent)
+        if mapped:
+            fb_key, emotion = mapped
+            if fb_key in FALLBACK_ANSWERS:
+                print(
+                    f"[INTENT FALLBACK] LLM/cache fora do tema '{intent}', usando resposta segura.",
+                    flush=True,
+                )
+                return {"response": FALLBACK_ANSWERS[fb_key], "emotion": emotion}
+        return result
 
     def _keyword_fallback(self, user_input: str) -> dict:
         lower = user_input.lower()
@@ -368,10 +418,14 @@ class AIService:
                 raw.content if hasattr(raw, "content") else str(raw)
             )
             result = self._parse_structured_response(response_text)
-            self._store_semantic_cache(
-                user_input,
-                json.dumps(result, ensure_ascii=False),
-            )
+            result = self._apply_intent_fallback(user_input, result)
+            if response_matches_intent(
+                str(result.get("response", "")), classify_intent(user_input)
+            ):
+                self._store_semantic_cache(
+                    user_input,
+                    json.dumps(result, ensure_ascii=False),
+                )
         except Exception as e:
             print(f"[LLM OFFLINE] {e}", flush=True)
             result = self._keyword_fallback(user_input)

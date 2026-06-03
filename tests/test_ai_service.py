@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from unittest.mock import MagicMock, patch
 from app.services.ai_service import AIService
@@ -72,6 +74,26 @@ async def test_sanitize_strips_intimate_terms(mock_service):
     assert "lindo" not in raw.lower()
     assert "linda" not in raw.lower()
     assert "querida" not in raw.lower()
+
+
+@pytest.mark.asyncio
+async def test_cache_skip_wrong_intent(mock_service):
+    mock_cache = MagicMock()
+    mock_cache.lookup.return_value = json.dumps(
+        {
+            "response": "Para agendar, envie e-mail para napsi@poli.br.",
+            "emotion": "neutral",
+        },
+        ensure_ascii=False,
+    )
+    mock_service.semantic_cache = mock_cache
+    mock_service.llm.invoke.return_value.content = (
+        '{"response": "O NAPSI fica no Bloco A, Sala 12.", "emotion": "happy"}'
+    )
+    with patch("app.services.ai_service.synthesize_speech", return_value=""):
+        out = await mock_service.get_response("Onde fica o NAPSI?")
+    assert "Bloco" in out["response"] or "Sala" in out["response"]
+    mock_service.llm.invoke.assert_called_once()
 
 
 @pytest.mark.asyncio

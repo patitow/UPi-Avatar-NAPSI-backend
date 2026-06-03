@@ -6,6 +6,8 @@ import math
 from pathlib import Path
 from typing import Any, List, Optional, Protocol
 
+from app.services.intent import classify_intent
+
 
 def _cosine_distance(a: List[float], b: List[float]) -> float:
     dot = sum(x * y for x, y in zip(a, b))
@@ -44,6 +46,9 @@ class DevSemanticCache:
             return
         try:
             self.entries = json.loads(self.path.read_text(encoding="utf-8"))
+            for entry in self.entries:
+                if not entry.get("intent") and entry.get("prompt"):
+                    entry["intent"] = classify_intent(entry["prompt"])
         except Exception as e:
             print(f"[AVISO] Cache dev: falha ao ler {self.path}: {e}", flush=True)
             self.entries = []
@@ -62,16 +67,22 @@ class DevSemanticCache:
         if not self.embeddings or not self.entries:
             return None
         try:
+            query_intent = classify_intent(user_input)
             query_vec = self.embeddings.embed_query(user_input)
             best_dist = 2.0
             best_response: Optional[str] = None
             for entry in self.entries:
+                if entry.get("intent") and entry["intent"] != query_intent:
+                    continue
                 dist = _cosine_distance(query_vec, entry["vector"])
                 if dist < best_dist:
                     best_dist = dist
                     best_response = entry.get("response")
             if best_response is not None and best_dist < self.threshold:
-                print(f"[CACHE HIT dev] dist={best_dist:.4f}", flush=True)
+                print(
+                    f"[CACHE HIT dev] intent={query_intent} dist={best_dist:.4f}",
+                    flush=True,
+                )
                 return best_response
         except Exception as e:
             print(f"[AVISO] Cache dev lookup: {e}", flush=True)
@@ -87,6 +98,7 @@ class DevSemanticCache:
                     "prompt": user_input,
                     "response": response_text,
                     "vector": vector,
+                    "intent": classify_intent(user_input),
                 }
             )
             self._save()
@@ -117,6 +129,7 @@ class RedisSemanticCache:
             "fields": [
                 {"name": "prompt", "type": "text"},
                 {"name": "response", "type": "text"},
+                {"name": "intent", "type": "tag"},
                 {
                     "name": "prompt_vector",
                     "type": "vector",
@@ -137,15 +150,18 @@ class RedisSemanticCache:
     def lookup(self, user_input: str) -> Optional[str]:
         try:
             from redisvl.query import VectorQuery
+            from redisvl.query.filter import Tag
 
             idx = self._index()
+            query_intent = classify_intent(user_input)
             vector = self.embeddings.embed_query(user_input)
             results = idx.query(
                 VectorQuery(
                     vector=vector,
                     vector_field_name="prompt_vector",
-                    return_fields=["prompt", "response"],
-                    num_results=1,
+                    return_fields=["prompt", "response", "intent"],
+                    num_results=3,
+                    filter_expression=Tag("intent") == query_intent,
                 )
             )
             if not results:
@@ -154,7 +170,10 @@ class RedisSemanticCache:
             distance = float(hit.get("vector_distance", 1.0))
             if distance >= self.threshold:
                 return None
-            print(f"[CACHE HIT redis] dist={distance:.4f}", flush=True)
+            print(
+                f"[CACHE HIT redis] intent={query_intent} dist={distance:.4f}",
+                flush=True,
+            )
             return hit["response"]
         except Exception as e:
             print(f"[AVISO] Redis cache: {e}", flush=True)
@@ -171,6 +190,7 @@ class RedisSemanticCache:
                     {
                         "prompt": user_input,
                         "response": response_text,
+                        "intent": classify_intent(user_input),
                         "prompt_vector": np.array(
                             vector, dtype=np.float32
                         ).tobytes(),
