@@ -4,9 +4,24 @@ from __future__ import annotations
 import re
 from typing import Literal
 
-Intent = Literal["location", "scheduling", "services", "tea", "general"]
+Intent = Literal[
+    "distress", "location", "scheduling", "services", "tea", "general"
+]
 
 _RULES: list[tuple[Intent, re.Pattern[str]]] = [
+    (
+        "distress",
+        re.compile(
+            r"(sentindo\s+mal|me\s+sinto|estou\s+mal|n[aã]o\s+estou\s+bem|"
+            r"passando\s+mal|mal[- ]estar|"
+            r"(?:estou|to)\s+(?:triste|ansios|deprim)|"
+            r"ansiedade|depress|desesper|p[aâ]nico|crise|"
+            r"n[aã]o\s+aguento|sofrimento|"
+            r"sa[uú]de\s+mental|"
+            r"(?:me\s+)?ajud(?:e|a|em)|preciso\s+de\s+ajuda)",
+            re.I,
+        ),
+    ),
     ("tea", re.compile(r"\b(tea|autis|espectro\s+autis|tdah|dislexia)\b", re.I)),
     (
         "location",
@@ -32,6 +47,7 @@ _RULES: list[tuple[Intent, re.Pattern[str]]] = [
 ]
 
 _RAG_HINTS: dict[Intent, str] = {
+    "distress": "acolhimento psicológico saúde mental ansiedade NAPSI agendar",
     "location": "localização Bloco A Sala 12 horário funcionamento",
     "scheduling": "agendar atendimento formulário e-mail napsi@poli.br",
     "services": "serviços psicopedagógico psicológico social inclusão",
@@ -39,6 +55,11 @@ _RAG_HINTS: dict[Intent, str] = {
 }
 
 _INTENT_SNIPPETS: dict[Intent, str] = {
+    "distress": (
+        "ACOLHIMENTO: NAPSI oferece atendimento psicológico e psicossocial para ansiedade, "
+        "estresse e dificuldades emocionais. Agende por napsi@poli.br ou presencial "
+        "Bloco A, Sala 12 (seg–sex, 8h–17h). Atendimentos são confidenciais."
+    ),
     "location": (
         "LOCALIZAÇÃO: NAPSI no Bloco A, Sala 12, POLI/UPE. "
         "Segunda a sexta, 8h às 17h. Contato: napsi@poli.br."
@@ -58,6 +79,9 @@ _INTENT_SNIPPETS: dict[Intent, str] = {
 }
 
 _RESPONSE_CHECKS: dict[Intent, re.Pattern[str]] = {
+    "distress": re.compile(
+        r"\b(napsi|acolh|psicol[oó]g|napsi@|bloco|sala|ajud|samu|192)\b", re.I
+    ),
     "location": re.compile(r"\b(bloco|sala\s+\d|localiz|8h|17h)\b", re.I),
     "scheduling": re.compile(r"\b(agendar|e-?mail|formul[aá]rio|napsi@)\b", re.I),
     "services": re.compile(
@@ -65,6 +89,12 @@ _RESPONSE_CHECKS: dict[Intent, re.Pattern[str]] = {
     ),
     "tea": re.compile(r"\b(tea|autis|espectro)\b", re.I),
 }
+
+
+def is_distress_message(text: str) -> bool:
+    if not text or not text.strip():
+        return False
+    return classify_intent(text) == "distress"
 
 
 def classify_intent(text: str) -> Intent:

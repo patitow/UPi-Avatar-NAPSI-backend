@@ -10,6 +10,7 @@ from app.services.semantic_cache import create_semantic_cache
 from app.services.intent import (
     classify_intent,
     fallback_context,
+    is_distress_message,
     rag_search_query,
     response_matches_intent,
 )
@@ -51,6 +52,7 @@ VALID_EMOTIONS = {
 }
 
 _INTENT_FALLBACK_KEY: dict[str, tuple[str, str]] = {
+    "distress": ("acolhimento", "calm"),
     "location": ("onde fica", "calm"),
     "scheduling": ("agendar", "calm"),
     "tea": ("tea", "happy"),
@@ -74,7 +76,15 @@ FALLBACK_ANSWERS = {
         "Oferecemos apoio psicopedagógico, acolhimento psicossocial, "
         "auxílio na adaptação acadêmica e orientação aos estudantes da POLI."
     ),
+    "acolhimento": (
+        "Sinto muito que você esteja passando por isso, visse? O NAPSI acolhe estudantes "
+        "em sofrimento com atendimento psicológico e psicossocial — escreva para napsi@poli.br "
+        "ou procure o Bloco A, Sala 12, de segunda a sexta, das 8h às 17h. "
+        "Se estiver em risco agora, ligue 192 (SAMU) ou busque o CAPS da sua região."
+    ),
 }
+
+_OUT_OF_SCOPE_PHRASE = "fora da minha área"
 
 _GREETING_RE = re.compile(
     r"^\s*(oi|olá|ola|e\s*a[ií]|eai|hey|bom\s+dia|boa\s+tarde|boa\s+noite)\b",
@@ -333,6 +343,22 @@ class AIService:
         )
         return {"response": text, "emotion": "happy"}
 
+    def _distress_response(self, user_input: str) -> dict:
+        return {
+            "response": FALLBACK_ANSWERS["acolhimento"],
+            "emotion": "calm",
+        }
+
+    def _block_out_of_scope_for_distress(self, user_input: str, result: dict) -> dict:
+        """Evita que o LLM recuse quem pede ajuda em sofrimento."""
+        if not is_distress_message(user_input):
+            return result
+        text = str(result.get("response", "")).lower()
+        if _OUT_OF_SCOPE_PHRASE in text:
+            print("[DISTRESS] Substituindo resposta fora do escopo.", flush=True)
+            return self._distress_response(user_input)
+        return result
+
     def _sanitize_response_tone(self, text: str) -> str:
         """Evita apelidos íntimos na resposta (lindo, linda, amor, etc.)."""
         if not text:
@@ -363,6 +389,8 @@ class AIService:
         return result
 
     def _keyword_fallback(self, user_input: str) -> dict:
+        if is_distress_message(user_input):
+            return self._distress_response(user_input)
         lower = user_input.lower()
         for key, val in FALLBACK_ANSWERS.items():
             if key in lower:
@@ -403,6 +431,9 @@ class AIService:
         if self._is_greeting(user_input):
             return self._finalize(self._greeting_response(user_input))
 
+        if is_distress_message(user_input):
+            return self._finalize(self._distress_response(user_input))
+
         cached = self._lookup_semantic_cache(user_input)
         if cached and cached.get("response"):
             return self._finalize(cached)
@@ -418,6 +449,7 @@ class AIService:
                 raw.content if hasattr(raw, "content") else str(raw)
             )
             result = self._parse_structured_response(response_text)
+            result = self._block_out_of_scope_for_distress(user_input, result)
             result = self._apply_intent_fallback(user_input, result)
             if response_matches_intent(
                 str(result.get("response", "")), classify_intent(user_input)

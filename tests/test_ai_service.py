@@ -28,12 +28,13 @@ def mock_service():
 @pytest.mark.asyncio
 async def test_get_response(mock_service):
     mock_service.llm.invoke.return_value.content = (
-        '{"response": "Oi!", "emotion": "happy"}'
+        '{"response": "O NAPSI fica no Bloco A, Sala 12.", "emotion": "happy"}'
     )
     with patch.object(mock_service, "_lookup_semantic_cache", return_value=None), \
          patch("app.services.ai_service.synthesize_speech", return_value=""):
         out = await mock_service.get_response("Onde fica o NAPSI?")
     assert out["emotion"] == "happy"
+    assert "Bloco" in out["response"] or "Sala" in out["response"]
     mock_service.llm.invoke.assert_called_once()
 
 
