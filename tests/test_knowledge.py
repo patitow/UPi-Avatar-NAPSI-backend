@@ -13,14 +13,20 @@ def test_load_seed_texts_includes_aci_knowledge():
     assert "semana de provas" in joined or "tempo adicional" in joined
     assert "calour" in joined or "calouros" in joined
     assert "escolaridade" in joined
+    assert "188" in joined or "cvv" in joined
 
 
 def test_aci_distress_and_services_intents():
     assert classify_intent("Preciso de acolhimento psicológico") == "distress"
     assert classify_intent("Me ajude a entender os serviços do NAPSI") == "services"
+    assert classify_intent("Como o NAPSI pode me ajudar na adaptação de provas?") == "services"
     assert not is_distress_message("Me ajude a entender os serviços do NAPSI")
     assert classify_intent("Como pedir tempo adicional na prova?") == "services"
     assert classify_intent("Sofro bullying na faculdade") == "distress"
+    assert classify_intent("Penso em me machucar") == "crisis"
+    assert classify_intent(
+        "Sou estudante em vulnerabilidade e preciso de auxílio"
+    ) == "services"
 
 
 def test_knowledge_files_exist():

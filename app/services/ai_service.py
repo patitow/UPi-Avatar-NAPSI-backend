@@ -10,6 +10,7 @@ from app.services.semantic_cache import create_semantic_cache
 from app.services.intent import (
     classify_intent,
     fallback_context,
+    is_crisis_message,
     is_distress_message,
     rag_search_query,
     response_matches_intent,
@@ -52,6 +53,7 @@ VALID_EMOTIONS = {
 }
 
 _INTENT_FALLBACK_KEY: dict[str, tuple[str, str]] = {
+    "crisis": ("crise", "calm"),
     "distress": ("acolhimento", "calm"),
     "location": ("onde fica", "calm"),
     "scheduling": ("agendar", "calm"),
@@ -81,7 +83,12 @@ FALLBACK_ANSWERS = {
         "Sinto muito que você esteja passando por isso, visse? O NAPSI acolhe estudantes "
         "em sofrimento com atendimento psicológico e psicossocial — escreva para napsi@poli.br "
         "ou procure o Bloco A, Sala 12, de segunda a sexta, das 8h às 17h. "
-        "Se estiver em risco agora, ligue 192 (SAMU) ou busque o CAPS da sua região."
+        "Se a angústia for muito forte agora, o CVV atende no 188 (24h); em emergência médica, 192 (SAMU)."
+    ),
+    "crise": (
+        "Sinto muito que você esteja passando por um momento tão difícil — sua vida importa, visse? "
+        "Ligue agora ao CVV 188 (24h, gratuito) ou ao SAMU 192 se houver risco imediato. "
+        "O NAPSI também acolhe estudantes: napsi@poli.br ou Bloco A, Sala 12, de segunda a sexta, das 8h às 17h."
     ),
 }
 
@@ -365,13 +372,22 @@ class AIService:
             "emotion": "calm",
         }
 
+    def _crisis_response(self, user_input: str) -> dict:
+        return {
+            "response": FALLBACK_ANSWERS["crise"],
+            "emotion": "calm",
+        }
+
     def _block_out_of_scope_for_distress(self, user_input: str, result: dict) -> dict:
-        """Evita que o LLM recuse quem pede ajuda em sofrimento."""
-        if not is_distress_message(user_input):
+        """Evita que o LLM recuse quem pede ajuda em sofrimento ou crise."""
+        if not (is_crisis_message(user_input) or is_distress_message(user_input)):
             return result
         text = str(result.get("response", "")).lower()
         if _OUT_OF_SCOPE_PHRASE in text:
-            print("[DISTRESS] Substituindo resposta fora do escopo.", flush=True)
+            tag = "CRISIS" if is_crisis_message(user_input) else "DISTRESS"
+            print(f"[{tag}] Substituindo resposta fora do escopo.", flush=True)
+            if is_crisis_message(user_input):
+                return self._crisis_response(user_input)
             return self._distress_response(user_input)
         return result
 
@@ -405,6 +421,8 @@ class AIService:
         return result
 
     def _keyword_fallback(self, user_input: str) -> dict:
+        if is_crisis_message(user_input):
+            return self._crisis_response(user_input)
         if is_distress_message(user_input):
             return self._distress_response(user_input)
         lower = user_input.lower()
@@ -446,6 +464,9 @@ class AIService:
     ):
         if self._is_greeting(user_input):
             return self._finalize(self._greeting_response(user_input))
+
+        if is_crisis_message(user_input):
+            return self._finalize(self._crisis_response(user_input))
 
         if is_distress_message(user_input):
             return self._finalize(self._distress_response(user_input))

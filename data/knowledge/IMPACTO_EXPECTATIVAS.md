@@ -22,6 +22,8 @@ Fonte processada: `Respostas -ACI napsi.pdf` → `napsi_expectativas_aci.txt`.
 
 | Camada | Alteração |
 |--------|-----------|
+| `intent` + `ai_service` | Rota **crisis** (CVV 188 + SAMU 192) antes de acolhimento leve |
+| `data/knowledge/napsi_redes_apoio.txt` | Redes de emergência e papéis institucionais |
 | `data/napsi_info.txt` | Seções calouros, provas/adaptações, canais Escolaridade vs NAPSI |
 | `data/knowledge/*.txt` | Corpus RAG (Chroma) após `scripts/rebuild_knowledge.py` |
 | `intent.py` | Hints e snippets para provas, acolhimento, calouros |
