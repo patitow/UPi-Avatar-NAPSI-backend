@@ -74,7 +74,13 @@ Para o modo de produção com PostgreSQL, Redis e OpenAI:
 
 O UPi aprende a partir de documentos na pasta `data/`.
 1. Coloque seus arquivos `.pdf`, `.txt` ou `.md` em `data/`.
-2. Execute o script de ingestão:
+2. Após alterar `data/napsi_info.txt` ou `data/knowledge/*.txt`, reindexe:
+   ```bash
+   python scripts/rebuild_knowledge.py
+   ```
+   (remove Chroma dev + cache semântico e semeia de novo)
+
+3. Para PDFs extras em `data/` ou `data/knowledge/`, execute o script de ingestão:
    ```bash
    python ingest_docs.py
    ```

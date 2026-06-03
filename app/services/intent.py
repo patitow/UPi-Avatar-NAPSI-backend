@@ -16,9 +16,11 @@ _RULES: list[tuple[Intent, re.Pattern[str]]] = [
             r"passando\s+mal|mal[- ]estar|"
             r"(?:estou|to)\s+(?:triste|ansios|deprim)|"
             r"ansiedade|depress|desesper|p[aâ]nico|crise|"
-            r"n[aã]o\s+aguento|sofrimento|"
-            r"sa[uú]de\s+mental|"
-            r"(?:me\s+)?ajud(?:e|a|em)|preciso\s+de\s+ajuda)",
+            r"semana\s+de\s+prova|"
+            r"n[aã]o\s+aguento|sofrimento|bullying|assen[aã]o|"
+            r"sa[uú]de\s+mental|preciso\s+de\s+acolhimento|"
+            r"(?:me\s+)?ajud(?:e|a|em)(?!\s+(?:a|no|com|sobre|entender|saber|inform))|"
+            r"preciso\s+de\s+ajuda)",
             re.I,
         ),
     ),
@@ -40,25 +42,27 @@ _RULES: list[tuple[Intent, re.Pattern[str]]] = [
     (
         "services",
         re.compile(
-            r"\b(servi[cç]os?|oferece|atendimentos|psicoped|psicol[oó]g|acolhimento|equipe)\b",
+            r"\b(servi[cç]os?|oferece|atendimentos|psicoped|psicol[oó]g|equipe|"
+            r"tempo\s+adicional|ambiente\s+separado|adapta[cç][aã]o|"
+            r"segunda\s+chamada|abono|calour|nivelamento|provas?)\b",
             re.I,
         ),
     ),
 ]
 
 _RAG_HINTS: dict[Intent, str] = {
-    "distress": "acolhimento psicológico saúde mental ansiedade NAPSI agendar",
+    "distress": "acolhimento psicológico saúde mental ansiedade semana de provas NAPSI",
     "location": "localização Bloco A Sala 12 horário funcionamento",
     "scheduling": "agendar atendimento formulário e-mail napsi@poli.br",
-    "services": "serviços psicopedagógico psicológico social inclusão",
-    "tea": "TEA Transtorno do Espectro Autista apoio inclusão",
+    "services": "serviços tempo adicional ambiente separado provas adaptação acadêmica",
+    "tea": "TEA Transtorno do Espectro Autista ruído comunicação PAI inclusão",
 }
 
 _INTENT_SNIPPETS: dict[Intent, str] = {
     "distress": (
         "ACOLHIMENTO: NAPSI oferece atendimento psicológico e psicossocial para ansiedade, "
-        "estresse e dificuldades emocionais. Agende por napsi@poli.br ou presencial "
-        "Bloco A, Sala 12 (seg–sex, 8h–17h). Atendimentos são confidenciais."
+        "estresse e crises frequentes na semana de provas. Agende por napsi@poli.br ou "
+        "presencial Bloco A, Sala 12 (seg–sex, 8h–17h). Atendimentos são confidenciais."
     ),
     "location": (
         "LOCALIZAÇÃO: NAPSI no Bloco A, Sala 12, POLI/UPE. "
@@ -69,12 +73,13 @@ _INTENT_SNIPPETS: dict[Intent, str] = {
         "com nome, matrícula e demanda; também presencial no Bloco A, Sala 12."
     ),
     "services": (
-        "SERVIÇOS: apoio psicopedagógico, psicológico e social; adaptação acadêmica; "
-        "orientação a estudantes com deficiência, TEA, TDAH, dislexia e vulnerabilidade."
+        "SERVIÇOS: apoio psicopedagógico, psicológico e social; adaptações como tempo "
+        "adicional e ambiente separado em provas (com laudo quando exigido); nivelamento "
+        "para calouros; orientação a estudantes com deficiência, TEA, TDAH, dislexia."
     ),
     "tea": (
-        "TEA: o NAPSI apoia alunos com TEA (Transtorno do Espectro Autista), "
-        "com plano de apoio individualizado e inclusão educacional."
+        "TEA: NAPSI apoia alunos com TEA (Transtorno do Espectro Autista) com PAI, "
+        "ambiente com menos ruído e comunicação clara; articula conscientização com docentes."
     ),
 }
 

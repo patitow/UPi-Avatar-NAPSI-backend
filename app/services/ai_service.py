@@ -74,7 +74,8 @@ FALLBACK_ANSWERS = {
     ),
     "serviço": (
         "Oferecemos apoio psicopedagógico, acolhimento psicossocial, "
-        "auxílio na adaptação acadêmica e orientação aos estudantes da POLI."
+        "adaptações em provas (tempo adicional, ambiente separado, com laudo quando necessário) "
+        "e orientação aos estudantes da POLI, visse?"
     ),
     "acolhimento": (
         "Sinto muito que você esteja passando por isso, visse? O NAPSI acolhe estudantes "
@@ -171,23 +172,38 @@ class AIService:
             print(f"[ERRO] Ollama LLM: {e}", flush=True)
             return None
 
+    def _knowledge_data_dir(self) -> str:
+        return os.path.join(
+            os.path.dirname(__file__), "..", "..", "data"
+        )
+
     def _load_seed_texts(self) -> List[str]:
         seeds = [
             "O NAPSI/UPE oferece suporte psicopedagógico e acolhimento no Bloco A, Sala 12, das 08h às 17h.",
             "Para agendar atendimentos no NAPSI, envie um e-mail para napsi@poli.br.",
         ]
-        info_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "data", "napsi_info.txt"
-        )
-        try:
-            if os.path.exists(info_path):
-                with open(info_path, encoding="utf-8") as f:
+        data_dir = self._knowledge_data_dir()
+        paths: list[str] = []
+        info_path = os.path.join(data_dir, "napsi_info.txt")
+        if os.path.isfile(info_path):
+            paths.append(info_path)
+        knowledge_dir = os.path.join(data_dir, "knowledge")
+        if os.path.isdir(knowledge_dir):
+            for name in sorted(os.listdir(knowledge_dir)):
+                if name.lower().endswith(".txt"):
+                    paths.append(os.path.join(knowledge_dir, name))
+
+        texts: list[str] = []
+        for path in paths:
+            try:
+                with open(path, encoding="utf-8") as f:
                     content = f.read().strip()
                     if content:
-                        return [content]
-        except Exception as e:
-            print(f"[AVISO] napsi_info.txt: {e}", flush=True)
-        return seeds
+                        texts.append(content)
+                        print(f"[INFO] Base de conhecimento: {os.path.basename(path)}", flush=True)
+            except Exception as e:
+                print(f"[AVISO] {path}: {e}", flush=True)
+        return texts if texts else seeds
 
     def _seed_vector_store_if_empty(self) -> None:
         try:
