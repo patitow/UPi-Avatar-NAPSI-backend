@@ -45,14 +45,8 @@ class IngestRequest(pydantic.BaseModel):
 
 @app.get("/health")
 def health_check():
-    return {
-        "status": "healthy",
-        "ok": True,
-        "vector_store": ai_service.vector_store_type,
-        "llm_provider": ai_service.llm_provider,
-        "llm_model": ai_service.llm_model,
-        "tts_provider": (settings.TTS_PROVIDER or "gtts").lower(),
-    }
+    """Liveness para o front — sem detalhes de stack (LLM, DB, TTS)."""
+    return {"status": "healthy", "ok": True}
 
 
 @app.get("/api/health")
@@ -97,7 +91,7 @@ async def chat_api(payload: ChatRequest):
 @app.post("/ingest")
 async def ingest(payload: IngestRequest):
     await ai_service.add_document(payload.text, payload.metadata)
-    return {"status": "success", "message": "Documento indexado no PGVector."}
+    return {"status": "success", "message": "Documento indexado."}
 
 
 @app.post("/api/ingest")
