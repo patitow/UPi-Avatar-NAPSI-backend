@@ -12,6 +12,14 @@ from langchain_ollama import ChatOllama
 from app.prompts.upi_prompts import UPI_SYSTEM_PROMPT
 from app.config import settings
 
+# =========================
+# NOVO: EDGE-TTS
+# =========================
+import edge_tts
+import tempfile
+import base64
+import re
+
 class AIService:
     """
     Serviço central de IA para o UPi.
@@ -204,13 +212,39 @@ class AIService:
                 except Exception as e:
                     print(f"Erro ao indexar no cache: {e}", flush=True)
             
-            return self._parse_structured_response(response_text)
+            result = self._parse_structured_response(response_text)
+
+            # ==========================================
+            # NOVO: GERA ÁUDIO EDGE-TTS
+            # ==========================================
+            audio = await self.generate_audio(
+                result.get("response", "")
+            )
+
+            result["audio"] = audio
+
+            print(
+                "Áudio gerado:",
+                len(audio) if audio else 0
+            )
+
+            return result
+            # ==========================================
+            # FIM: GERA ÁUDIO EDGE-TTS
+            # ==========================================
             
         except Exception as e:
             print(f"Erro crítico no AIService: {e}", flush=True)
             return {
+                #================================================
+                # NOVO: return(só a linha "audio": "" é nova. A linha response e emotion já tinha antes)
+                #=================================================
                 "response": "Eita! Tive um probleminha aqui pra te responder. Tenta de novo em instantes!",
-                "emotion": "neutral"
+                "emotion": "neutral",
+                "audio": ""
+                #================================================
+                # FIM: return
+                #=================================================
             }
 
     async def _call_llm_structured(self, messages: list) -> str:
@@ -227,6 +261,79 @@ class AIService:
                 )
                 return fallback_llm.invoke(messages).content
             raise e
+        
+
+    # ==================================================
+    # NOVO: GERAÇÃO DE ÁUDIO COM EDGE-TTS
+    # ==================================================
+    async def generate_audio(self, text: str) -> str:
+        """
+        Gera áudio MP3 usando Edge-TTS e retorna em Base64.
+        """
+
+        try:
+            voice = "pt-BR-FranciscaNeural"
+
+            clean_text = text
+
+            clean_text = re.sub(r"[*_#`]", "", clean_text)
+            clean_text = re.sub(r"\n+", " ", clean_text)
+            clean_text = clean_text.replace("/", "")
+            clean_text = clean_text.strip()
+
+            print("=" * 50)
+            print("VOICE:", voice)
+            print("TEXT ORIGINAL:", repr(text))
+            print("TEXT LIMPO:", repr(clean_text))
+            print("TAMANHO:", len(clean_text))
+            print("=" * 50)
+
+            if not clean_text:
+                return ""
+
+            with tempfile.NamedTemporaryFile(
+                suffix=".mp3",
+                delete=False
+            ) as tmp_file:
+
+                temp_path = tmp_file.name
+
+            communicate = edge_tts.Communicate(
+                text=clean_text,
+                voice=voice
+            )
+
+            await communicate.save(temp_path)
+
+            if not os.path.exists(temp_path):
+                print("ARQUIVO NÃO CRIADO")
+                return ""
+
+            file_size = os.path.getsize(temp_path)
+
+            print("ARQUIVO GERADO:", temp_path)
+            print("TAMANHO MP3:", file_size)
+
+            if file_size == 0:
+                return ""
+
+            with open(temp_path, "rb") as audio_file:
+                audio_bytes = audio_file.read()
+
+            os.remove(temp_path)
+
+            return (
+                "data:audio/mp3;base64,"
+                + base64.b64encode(audio_bytes).decode("utf-8")
+            )
+
+        except Exception as e:
+            print("EDGE ERROR:", repr(e))
+            return ""
+
+    # ==================================================
+    # FIM: GERAÇÃO DE ÁUDIO COM EDGE-TTS
+    # ==================================================
 
     def _parse_structured_response(self, raw: str) -> dict:
         """Tenta parsear a resposta como JSON, fallback para texto puro se falhar."""
@@ -239,7 +346,13 @@ class AIService:
         except Exception:
             # Se falhar o parse, tenta limpar o texto e retornar como resposta
             clean_text = raw.replace("JSON:", "").replace("```json", "").replace("```", "").strip()
-            return {"response": clean_text, "emotion": "neutral"}
+            #======================================
+            # NOVO: return(só foi acrescentado o audio. O resto já tinha)
+            #======================================
+            return {"response": clean_text, "emotion": "neutral", "audio": ""}
+            #======================================
+            # FIM: return
+            #======================================
 
     async def add_document(self, text: str, metadata: dict = None):
         """Adiciona um novo documento à base de conhecimento."""

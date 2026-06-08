@@ -23,3 +23,4 @@ httpx
 redis
 langchain-redis
 pypdf
+edge-tts==7.2.8
