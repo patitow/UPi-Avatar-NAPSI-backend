@@ -36,9 +36,20 @@ if (-not (ollama list 2>$null | Select-String $model)) {
     ollama pull $model
 }
 
-if (-not (python -c "import fastapi" 2>$null)) {
+function Test-PythonImport {
+    param([string]$Module)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    python -c "import $Module" 2>$null | Out-Null
+    $ok = $LASTEXITCODE -eq 0
+    $ErrorActionPreference = $prev
+    return $ok
+}
+
+if (-not (Test-PythonImport "fastapi")) {
+    Write-Host "Instalando dependencias (requirements-dev.txt)..." -ForegroundColor Yellow
     pip install -r requirements-dev.txt
-} elseif (-not (python -c "import chromadb" 2>$null)) {
+} elseif (-not (Test-PythonImport "chromadb")) {
     pip install chromadb
 }
 
