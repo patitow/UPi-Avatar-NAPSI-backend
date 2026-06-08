@@ -3,12 +3,13 @@ import json
 import base64
 import re
 import io
-from typing import List
+import tempfile
+import asyncio
+import edge_tts
 
-# Importações de base do LangChain
+from typing import List
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
 from app.config import settings
-
 # =====================================================================
 # PROMPT DE CONTINGÊNCIA GLOBAL (Segurança de Escopo)
 # =====================================================================
@@ -202,34 +203,51 @@ class AIService:
             clean = re.sub(pattern, replacement, clean)
 
         # Adiciona micropausas de respiração estratégica
-        clean = clean.replace(",", ", ...")
-        clean = clean.replace(".", ". ...")
-        clean = clean.replace("!", "! ...")
-        clean = clean.replace("?", "? ...")
-        
+        #clean = clean.replace(",", ", ...")
+        #clean = clean.replace(".", ". ...")
+        #clean = clean.replace("!", "! ...")
+        #clean = clean.replace("?", "? ...")
+
         clean = re.sub(r'\s+', ' ', clean).strip()
         return clean
 
-    def _generate_tts_audio(self, text: str) -> str:
-        """Gera o áudio usando gTTS com o texto higienizado."""
+    async def _generate_tts_audio(self, text: str) -> str:
         try:
-            from gtts import gTTS
-            
             clean_text = self._clean_text_for_tts(text)
-            if not clean_text:
-                return ""
 
-            tts = gTTS(text=clean_text, lang='pt', tld='com.br', slow=False)
-            
-            fp = io.BytesIO()
-            tts.write_to_fp(fp)
-            fp.seek(0)
-            
-            audio_base64 = base64.b64encode(fp.read()).decode("utf-8")
+            print("=" * 50)
+            print("VOICE:", "pt-BR-FranciscaNeural")
+            print("TEXT ORIGINAL:", repr(text))
+            print("TEXT LIMPO:", repr(clean_text))
+            print("TAMANHO:", len(clean_text))
+            print("=" * 50)
+
+            communicate = edge_tts.Communicate(
+                text=clean_text,
+                voice="pt-BR-AntonioNeural"
+            )
+
+            with tempfile.NamedTemporaryFile(
+                suffix=".mp3",
+                delete=False
+            ) as temp_audio:
+
+                temp_path = temp_audio.name
+
+            await communicate.save(temp_path)
+
+            print("ARQUIVO GERADO:", temp_path)
+            print("TAMANHO MP3:", os.path.getsize(temp_path))
+
+            with open(temp_path, "rb") as f:
+                audio_base64 = base64.b64encode(
+                    f.read()
+                ).decode("utf-8")
+
             return f"data:audio/mp3;base64,{audio_base64}"
-            
+
         except Exception as e:
-            print(f"[TTS ERROR] Falha na síntese de voz gTTS: {e}", flush=True)
+            print("EDGE ERROR:", repr(e))
             return ""
 
     async def get_response(self, user_input: str, chat_history: List[BaseMessage] = None, user_id: str = None):
@@ -318,7 +336,9 @@ class AIService:
             result["emotion"] = "neutral"
 
         # Gera o áudio da voz em base64 com segurança
-        result["audio"] = self._generate_tts_audio(result["response"])
+        #result["audio"] = self._generate_tts_audio(result["response"])
+        result["audio"] = await self._generate_tts_audio(result["response"])
+        print("Áudio gerado:", len(result["audio"]))
         return result
 
     def _parse_structured_response(self, raw: str) -> dict:
@@ -369,3 +389,9 @@ class AIService:
 
 
 ai_service = AIService()
+
+#Colocar no .venv o backend: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+#.\.venv\Scripts\Activate.ps1
+
+#npn dando erro: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+#npm run dev

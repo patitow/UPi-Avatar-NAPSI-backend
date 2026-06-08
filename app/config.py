@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
     
     # Dimensões corretas para o modelo llama3.2:1b (2048)
-    EMBEDDING_DIMS: int = 384
+    EMBEDDING_DIMS: int = 3072
     
     # Base de Dados (Garante que o DATABASE_URL exista para evitar AttributeError!)
     DATABASE_URL: str = os.getenv(

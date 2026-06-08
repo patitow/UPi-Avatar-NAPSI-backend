@@ -37,10 +37,20 @@ class ChatRequest(pydantic.BaseModel):
 
 @app.get("/health")
 def health_check():
-    """Retorna o estado de integridade do sistema exigido pelo painel do UPi."""
+
+    provider = "ollama" if getattr(ai_service, "using_fallback", False) else "openai"
+
+    model = (
+        settings.OLLAMA_MODEL
+        if provider == "ollama"
+        else settings.OPENAI_MODEL
+    )
+
     return {
         "status": "healthy",
         "ok": True,
+        "llm_provider": provider,
+        "llm_model": model,
         "vector_store": ai_service.vector_store_type
     }
 
