@@ -1,6 +1,7 @@
 import os
 import json
 import re
+import time
 from typing import List, Optional
 
 from langchain_core.messages import SystemMessage, HumanMessage, BaseMessage
@@ -348,10 +349,17 @@ class AIService:
             return "chroma"
         return "pgvector"
 
-    def _lookup_semantic_cache(self, user_input: str) -> Optional[dict]:
+    def _embed_query(self, user_input: str) -> Optional[List[float]]:
+        if not self.embeddings:
+            return None
+        return self.embeddings.embed_query(user_input)
+
+    def _lookup_semantic_cache(
+        self, user_input: str, query_vector: Optional[List[float]] = None
+    ) -> Optional[dict]:
         if not self.semantic_cache:
             return None
-        raw = self.semantic_cache.lookup(user_input)
+        raw = self.semantic_cache.lookup(user_input, query_vector)
         if not raw:
             return None
         parsed = self._parse_structured_response(raw)
@@ -369,19 +377,27 @@ class AIService:
         if self.semantic_cache:
             self.semantic_cache.store(user_input, response_text)
 
-    def _rag_context(self, user_input: str) -> str:
+    def _rag_context(
+        self, user_input: str, query_vector: Optional[List[float]] = None
+    ) -> str:
         intent = classify_intent(user_input)
         default = fallback_context(intent)
         if not self.vector_store:
             return default
         max_distance = float(os.getenv("RAG_MAX_DISTANCE", "0.65"))
+        rag_k = int(os.getenv("RAG_TOP_K", "3"))
         try:
             search_fn = getattr(
                 self.vector_store, "similarity_search_with_score", None
             )
+            search_by_vector = getattr(
+                self.vector_store, "similarity_search_by_vector_with_score", None
+            )
             query = rag_search_query(user_input)
-            if search_fn:
-                scored = search_fn(query, k=5)
+            if query_vector is not None and search_by_vector:
+                scored = search_by_vector(query_vector, k=rag_k)
+            elif search_fn:
+                scored = search_fn(query, k=rag_k)
                 chunks = [
                     doc.page_content
                     for doc, dist in scored
@@ -515,33 +531,61 @@ class AIService:
         result["audio"] = synthesize_speech(result["response"])
         return result
 
+    async def _invoke_llm(self, messages: list):
+        if not self.llm:
+            raise RuntimeError("LLM não inicializado")
+        if hasattr(self.llm, "ainvoke"):
+            return await self.llm.ainvoke(messages)
+        return self.llm.invoke(messages)
+
+    def _log_timings(self, label: str, timings: dict[str, float]) -> None:
+        if not settings.UPI_LOG_TIMINGS:
+            return
+        parts = ", ".join(f"{key}={ms:.0f}ms" for key, ms in timings.items())
+        print(f"[LATENCY] {label} | {parts}", flush=True)
+
     async def get_response(
         self,
         user_input: str,
         chat_history: List[BaseMessage] = None,
         user_id: str = None,
     ):
-        if not settings.UPI_DISABLE_REGEX_ROUTES:
-            if self._is_greeting(user_input):
-                return self._finalize(self._greeting_response(user_input))
+        started = time.perf_counter()
+        timings: dict[str, float] = {}
 
-            if is_crisis_message(user_input):
-                return self._finalize(self._crisis_response(user_input))
+        if is_crisis_message(user_input):
+            self._log_timings("crisis-fast-path", timings)
+            return self._finalize(self._crisis_response(user_input))
 
-            if is_distress_message(user_input):
-                return self._finalize(self._distress_response(user_input))
+        if is_distress_message(user_input):
+            self._log_timings("distress-fast-path", timings)
+            return self._finalize(self._distress_response(user_input))
 
-        cached = self._lookup_semantic_cache(user_input)
+        if settings.UPI_FAST_GREETINGS and self._is_greeting(user_input):
+            self._log_timings("greeting-fast-path", timings)
+            return self._finalize(self._greeting_response(user_input))
+
+        t_embed = time.perf_counter()
+        query_vector = self._embed_query(user_input)
+        timings["embed"] = (time.perf_counter() - t_embed) * 1000
+
+        t_cache = time.perf_counter()
+        cached = self._lookup_semantic_cache(user_input, query_vector)
+        timings["cache"] = (time.perf_counter() - t_cache) * 1000
         if cached and cached.get("response"):
+            timings["total"] = (time.perf_counter() - started) * 1000
+            self._log_timings("cache-hit", timings)
             return self._finalize(cached)
 
-        context = self._rag_context(user_input)
+        t_rag = time.perf_counter()
+        context = self._rag_context(user_input, query_vector)
+        timings["rag"] = (time.perf_counter() - t_rag) * 1000
         messages = self._build_messages(user_input, context, chat_history)
 
         try:
-            if not self.llm:
-                raise RuntimeError("LLM não inicializado")
-            raw = self.llm.invoke(messages)
+            t_llm = time.perf_counter()
+            raw = await self._invoke_llm(messages)
+            timings["llm"] = (time.perf_counter() - t_llm) * 1000
             response_text = (
                 raw.content if hasattr(raw, "content") else str(raw)
             )
@@ -559,6 +603,8 @@ class AIService:
             print(f"[LLM OFFLINE] {e}", flush=True)
             result = self._keyword_fallback(user_input)
 
+        timings["total"] = (time.perf_counter() - started) * 1000
+        self._log_timings("llm-path", timings)
         return self._finalize(result)
 
     def _parse_structured_response(self, raw: str) -> dict:

@@ -53,6 +53,14 @@ class Settings(BaseSettings):
         "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000",
     )
 
+    # Produção: senha simples para fechar o site (ignorada em UPI_DEV_MODE=1)
+    SITE_ACCESS_PASSWORD: Optional[str] = os.getenv("SITE_ACCESS_PASSWORD")
+    SITE_AUTH_SECRET: str = os.getenv("SITE_AUTH_SECRET", "upi-site-auth")
+
+    # Saudações sem LLM (mais rápido); crise/sofrimento sempre têm fast-path
+    UPI_FAST_GREETINGS: bool = _env_bool("UPI_FAST_GREETINGS", default=True)
+    UPI_LOG_TIMINGS: bool = _env_bool("UPI_LOG_TIMINGS", default=False)
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

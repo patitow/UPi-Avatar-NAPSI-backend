@@ -19,7 +19,9 @@ def _cosine_distance(a: List[float], b: List[float]) -> float:
 
 
 class SemanticCacheBackend(Protocol):
-    def lookup(self, user_input: str) -> Optional[str]:
+    def lookup(
+        self, user_input: str, query_vector: Optional[List[float]] = None
+    ) -> Optional[str]:
         ...
 
     def store(self, user_input: str, response_text: str) -> None:
@@ -63,12 +65,14 @@ class DevSemanticCache:
         except Exception as e:
             print(f"[AVISO] Cache dev: falha ao gravar {self.path}: {e}", flush=True)
 
-    def lookup(self, user_input: str) -> Optional[str]:
+    def lookup(
+        self, user_input: str, query_vector: Optional[List[float]] = None
+    ) -> Optional[str]:
         if not self.embeddings or not self.entries:
             return None
         try:
             query_intent = classify_intent(user_input)
-            query_vec = self.embeddings.embed_query(user_input)
+            query_vec = query_vector or self.embeddings.embed_query(user_input)
             best_dist = 2.0
             best_response: Optional[str] = None
             for entry in self.entries:
@@ -119,8 +123,12 @@ class RedisSemanticCache:
         self.embeddings = embeddings
         self.redis_url = redis_url
         self.threshold = distance_threshold
+        self._index_instance = None
 
     def _index(self):
+        if self._index_instance is not None:
+            return self._index_instance
+
         from redisvl.index import SearchIndex
 
         probe = self.embeddings.embed_query("cache_probe")
@@ -145,16 +153,19 @@ class RedisSemanticCache:
         idx = SearchIndex.from_dict(schema, redis_url=self.redis_url)
         if not idx.exists():
             idx.create(overwrite=False)
+        self._index_instance = idx
         return idx
 
-    def lookup(self, user_input: str) -> Optional[str]:
+    def lookup(
+        self, user_input: str, query_vector: Optional[List[float]] = None
+    ) -> Optional[str]:
         try:
             from redisvl.query import VectorQuery
             from redisvl.query.filter import Tag
 
             idx = self._index()
             query_intent = classify_intent(user_input)
-            vector = self.embeddings.embed_query(user_input)
+            vector = query_vector or self.embeddings.embed_query(user_input)
             results = idx.query(
                 VectorQuery(
                     vector=vector,

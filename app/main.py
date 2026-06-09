@@ -2,10 +2,16 @@ import os
 from typing import List, Optional
 
 import pydantic
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.site_auth import (
+    issue_site_token,
+    require_site_access,
+    site_auth_enabled,
+    verify_password,
+)
 from app.services.ai_service import ai_service
 
 app = FastAPI(
@@ -41,6 +47,34 @@ class ChatRequest(pydantic.BaseModel):
 class IngestRequest(pydantic.BaseModel):
     text: str
     metadata: dict = {}
+
+
+class LoginRequest(pydantic.BaseModel):
+    password: str
+
+
+@app.get("/auth/config")
+def auth_config():
+    return {"required": site_auth_enabled()}
+
+
+@app.get("/api/auth/config")
+def api_auth_config():
+    return auth_config()
+
+
+@app.post("/auth/login")
+def auth_login(payload: LoginRequest):
+    if not site_auth_enabled():
+        return {"ok": True, "token": None}
+    if not verify_password(payload.password):
+        raise HTTPException(status_code=401, detail="Senha incorreta")
+    return {"ok": True, "token": issue_site_token()}
+
+
+@app.post("/api/auth/login")
+def api_auth_login(payload: LoginRequest):
+    return auth_login(payload)
 
 
 @app.get("/health")
@@ -79,21 +113,33 @@ async def handle_chat_interaction(payload: ChatRequest):
 
 
 @app.post("/chat")
-async def chat_direct(payload: ChatRequest):
+async def chat_direct(
+    payload: ChatRequest,
+    _: None = Depends(require_site_access),
+):
     return await handle_chat_interaction(payload)
 
 
 @app.post("/api/chat")
-async def chat_api(payload: ChatRequest):
+async def chat_api(
+    payload: ChatRequest,
+    _: None = Depends(require_site_access),
+):
     return await handle_chat_interaction(payload)
 
 
 @app.post("/ingest")
-async def ingest(payload: IngestRequest):
+async def ingest(
+    payload: IngestRequest,
+    _: None = Depends(require_site_access),
+):
     await ai_service.add_document(payload.text, payload.metadata)
     return {"status": "success", "message": "Documento indexado."}
 
 
 @app.post("/api/ingest")
-async def ingest_api(payload: IngestRequest):
+async def ingest_api(
+    payload: IngestRequest,
+    _: None = Depends(require_site_access),
+):
     return await ingest(payload)
