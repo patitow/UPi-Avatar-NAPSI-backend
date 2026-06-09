@@ -73,6 +73,10 @@ services:
       - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
       - UPI_DEV_MODE=0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-5-nano}
+      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      - EMBEDDINGS_PROVIDER=${EMBEDDINGS_PROVIDER:-auto}
+      - COLLECTION_NAME=${COLLECTION_NAME:-upi_knowledge}
       - TTS_PROVIDER=${TTS_PROVIDER:-gtts}
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     depends_on:

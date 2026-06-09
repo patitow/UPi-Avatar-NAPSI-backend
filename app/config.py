@@ -23,6 +23,9 @@ class Settings(BaseSettings):
 
     OPENAI_API_KEY: Optional[str] = None
     OPENAI_MODEL: str = "gpt-5-nano"
+    OPENAI_EMBEDDING_MODEL: str = "text-embedding-3-small"
+    # auto = OpenAI se OPENAI_API_KEY existir; senão Ollama. Valores: auto | openai | ollama
+    EMBEDDINGS_PROVIDER: str = os.getenv("EMBEDDINGS_PROVIDER", "auto")
     OLLAMA_MODEL: str = "llama3.2:3b"
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 

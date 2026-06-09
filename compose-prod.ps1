@@ -1,8 +1,10 @@
 # Produção em casa: stack UPi em container + Caddy HTTPS (:443) + DDNS Cloudflare.
-# Equivalente ao mine.patitow.dev — ver server.json e certs/README.md.param(
+# Equivalente ao mine.patitow.dev — ver server.json e certs/README.md.
+param(
     [switch]$Build,
     [switch]$Ddns,
     [switch]$NoDdns,
+    [switch]$NoOllama,
     [string[]]$ComposeArgs = @("-d")
 )
 
@@ -16,6 +18,28 @@ function Test-HostOllama {
     } catch {
         return $false
     }
+}
+
+function Test-OpenAiEmbeddingsConfigured {
+    $envFile = Join-Path $PSScriptRoot ".env"
+    if (-not (Test-Path $envFile)) { return $false }
+
+    $provider = "auto"
+    $hasKey = $false
+    foreach ($line in Get-Content $envFile) {
+        if ($line -match '^\s*#') { continue }
+        if ($line -match '^\s*EMBEDDINGS_PROVIDER=(.+)$') {
+            $provider = $matches[1].Trim().Trim('"').Trim("'").ToLower()
+        }
+        if ($line -match '^\s*OPENAI_API_KEY=(.+)$') {
+            $val = $matches[1].Trim().Trim('"').Trim("'")
+            if ($val) { $hasKey = $true }
+        }
+    }
+
+    if ($provider -eq "ollama") { return $false }
+    if ($provider -eq "openai") { return $hasKey }
+    return $hasKey
 }
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -37,12 +61,18 @@ Depois: SSL/TLS → Overview → Full (strict)
 }
 
 $files = @("-f", "docker-compose.yml", "-f", "docker-compose.prod.yml")
-if (-not (Test-HostOllama)) {
+$useOpenAiEmbeddings = (-not $NoOllama) -and (Test-OpenAiEmbeddingsConfigured)
+
+if ($useOpenAiEmbeddings) {
+    Write-Host "LLM + embeddings via OpenAI — Ollama não necessário." -ForegroundColor Green
+} elseif ($NoOllama) {
+    Write-Host "Ollama desligado (-NoOllama)." -ForegroundColor Yellow
+} elseif (Test-HostOllama) {
+    Write-Host "Ollama detectado em http://127.0.0.1:11434 — API usará host.docker.internal." -ForegroundColor Green
+} else {
     Write-Host "Ollama não encontrado no host — subindo container upi_ollama." -ForegroundColor Yellow
     Write-Host "  Depois: docker exec -it upi_ollama ollama pull llama3.2:3b" -ForegroundColor DarkYellow
     $files += "-f", "docker-compose.ollama.yml"
-} else {
-    Write-Host "Ollama detectado em http://127.0.0.1:11434 — API usará host.docker.internal." -ForegroundColor Green
 }
 
 $upArgs = @("compose") + $files + @("--profile", "prod", "up")

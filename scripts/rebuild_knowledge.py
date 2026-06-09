@@ -43,7 +43,7 @@ def main() -> int:
 
     service = AIService()
     if not service.vector_store:
-        print("[ERRO] Vector store não inicializado (verifique Ollama/embeddings).")
+        print("[ERRO] Vector store não inicializado (verifique embeddings OpenAI/Ollama).")
         return 1
 
     try:

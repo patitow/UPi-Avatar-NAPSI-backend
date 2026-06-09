@@ -109,6 +109,7 @@ class AIService:
     def __init__(self, connection_string: Optional[str] = None):
         self.dev_mode = settings.UPI_DEV_MODE
         self.using_fallback = False
+        self.embeddings_provider = "none"
         self.embeddings = self._init_embeddings()
         self.llm = self._init_llm()
         self.connection_string = connection_string or settings.DATABASE_URL
@@ -123,7 +124,10 @@ class AIService:
         )
 
         mode = "DEV (Chroma + cache JSON)" if self.dev_mode else "PROD (PGVector + Redis)"
-        print(f"[INFO] AIService — {mode}", flush=True)
+        print(
+            f"[INFO] AIService — {mode} | embeddings: {self.embeddings_provider}",
+            flush=True,
+        )
 
         self.semantic_cache = create_semantic_cache(
             dev_mode=self.dev_mode,
@@ -134,10 +138,48 @@ class AIService:
         )
         self.init_knowledge_base()
 
-    def _init_embeddings(self):
+    @staticmethod
+    def _openai_api_key() -> str:
+        return (settings.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY") or "").strip()
+
+    @staticmethod
+    def _embeddings_backend() -> str:
+        provider = (settings.EMBEDDINGS_PROVIDER or "auto").strip().lower()
+        if provider == "openai":
+            return "openai"
+        if provider == "ollama":
+            return "ollama"
+        return "openai" if AIService._openai_api_key() else "ollama"
+
+    def _init_openai_embeddings(self):
+        api_key = self._openai_api_key()
+        if not api_key:
+            return None
+        try:
+            from langchain_openai import OpenAIEmbeddings
+
+            self.embeddings_provider = "openai"
+            print(
+                f"[INFO] Embeddings via OpenAI ({settings.OPENAI_EMBEDDING_MODEL}).",
+                flush=True,
+            )
+            return OpenAIEmbeddings(
+                model=settings.OPENAI_EMBEDDING_MODEL,
+                api_key=api_key,
+            )
+        except Exception as e:
+            print(f"[AVISO] Embeddings OpenAI indisponíveis: {e}", flush=True)
+            return None
+
+    def _init_ollama_embeddings(self):
         try:
             from langchain_ollama import OllamaEmbeddings
 
+            self.embeddings_provider = "ollama"
+            print(
+                f"[INFO] Embeddings via Ollama ({settings.OLLAMA_MODEL}).",
+                flush=True,
+            )
             return OllamaEmbeddings(
                 model=settings.OLLAMA_MODEL,
                 base_url=settings.OLLAMA_BASE_URL,
@@ -146,8 +188,23 @@ class AIService:
             print(f"[AVISO] Embeddings Ollama indisponíveis: {e}", flush=True)
             return None
 
+    def _init_embeddings(self):
+        backend = self._embeddings_backend()
+        if backend == "openai":
+            embeddings = self._init_openai_embeddings()
+            if embeddings:
+                return embeddings
+            print("[AVISO] OpenAI embeddings falhou — tentando Ollama.", flush=True)
+
+        embeddings = self._init_ollama_embeddings()
+        if embeddings:
+            return embeddings
+
+        self.embeddings_provider = "none"
+        return None
+
     def _init_llm(self):
-        api_key = (settings.OPENAI_API_KEY or os.getenv("OPENAI_API_KEY") or "").strip()
+        api_key = self._openai_api_key()
         if api_key:
             try:
                 from langchain_openai import ChatOpenAI
