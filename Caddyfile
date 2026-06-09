@@ -1,6 +1,4 @@
-# HTTPS end-to-end: Cloudflare Full (strict) → Caddy :443 → API
-#
-# Certificados: certs/origin.pem + certs/origin-key.pem (Origin Certificate da Cloudflare)
+# Cloudflare Full → Caddy :443 (Origin Certificate) → API
 # Ver certs/README.md
 
 :80 {
@@ -8,6 +6,8 @@
 }
 
 api.upi.patitow.dev {
-	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin-key.pem
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin-key.pem {
+		protocols tls1.2 tls1.3
+	}
 	reverse_proxy api:8000
 }

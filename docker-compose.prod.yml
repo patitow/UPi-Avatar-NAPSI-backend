@@ -1,5 +1,4 @@
-# Override de produção: API não exposta na LAN, só via Caddy (:80).
+# Producao: API so na rede Docker (Caddy faz o proxy publico).
 services:
   api:
-    ports:
-      - "127.0.0.1:8000:8000"
+    ports: !reset []
