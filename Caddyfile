@@ -1,0 +1,5 @@
+# Proxy HTTP na porta 80 → FastAPI (porta interna 8000).
+# Com Cloudflare proxy (nuvem laranja) + SSL Flexible, o tráfego chega aqui em HTTP.
+:80 {
+	reverse_proxy api:8000
+}
