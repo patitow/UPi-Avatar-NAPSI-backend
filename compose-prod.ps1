@@ -1,7 +1,8 @@
-# Sobe o stack de produção (Docker + Caddy :80) e, opcionalmente, DDNS Cloudflare.
-param(
+# Produção em casa: stack UPi em container + Caddy HTTPS (:443) + DDNS Cloudflare.
+# Equivalente ao mine.patitow.dev — ver server.json e certs/README.md.param(
     [switch]$Build,
     [switch]$Ddns,
+    [switch]$NoDdns,
     [string[]]$ComposeArgs = @("-d")
 )
 
@@ -21,6 +22,20 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     Write-Error "Docker não encontrado no PATH."
 }
 
+$certPem = Join-Path $PSScriptRoot "certs\origin.pem"
+$certKey = Join-Path $PSScriptRoot "certs\origin-key.pem"
+if (-not ((Test-Path $certPem) -and (Test-Path $certKey))) {
+    Write-Error @"
+Certificados Cloudflare em falta.
+
+Cria certs/origin.pem e certs/origin-key.pem (Origin Certificate).
+Instruções: certs/README.md
+
+Cloudflare → SSL/TLS → Origin Server → Create Certificate
+Depois: SSL/TLS → Overview → Full (strict)
+"@
+}
+
 $files = @("-f", "docker-compose.yml", "-f", "docker-compose.prod.yml")
 if (-not (Test-HostOllama)) {
     Write-Host "Ollama não encontrado no host — subindo container upi_ollama." -ForegroundColor Yellow
@@ -30,21 +45,24 @@ if (-not (Test-HostOllama)) {
     Write-Host "Ollama detectado em http://127.0.0.1:11434 — API usará host.docker.internal." -ForegroundColor Green
 }
 
-$upArgs = @("compose") + $files + @("up")
+$upArgs = @("compose") + $files + @("--profile", "prod", "up")
 if ($Build) { $upArgs += "--build" }
-if ($Ddns) {
+
+$useDdns = $Ddns -or (-not $NoDdns)
+if ($useDdns) {
     $upArgs += "--profile", "ddns"
     Write-Host "DDNS Cloudflare ativo (profile ddns)." -ForegroundColor Cyan
     Write-Host "  Verifique CLOUDFLARE_API_TOKEN e DDNS_DOMAINS no .env" -ForegroundColor DarkYellow
 } else {
-    Write-Host "Sem DDNS — use -Ddns para atualizar api.upi.patitow.dev automaticamente." -ForegroundColor DarkYellow
+    Write-Host "Sem DDNS (-NoDdns). DNS no Cloudflare não será atualizado." -ForegroundColor DarkYellow
 }
 $upArgs += $ComposeArgs
 
 Write-Host ""
+Write-Host "  Domínio API:     https://api.upi.patitow.dev" -ForegroundColor Green
 Write-Host "  Front (Vercel):  https://upi.patitow.dev" -ForegroundColor Green
-Write-Host "  API (Caddy):     http://localhost (proxy → :8000 interno)" -ForegroundColor Green
-Write-Host "  DDNS (opcional): docker compose logs -f cloudflare-ddns-upi" -ForegroundColor Green
+Write-Host "  Teste local:     curl -k https://localhost/health  (ou via domínio)" -ForegroundColor Green
+Write-Host "  Logs DDNS:       docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f cloudflare-ddns-upi" -ForegroundColor Green
 Write-Host ""
 
 & docker @upArgs

@@ -1,3 +1,29 @@
+# UPi API (FastAPI + Postgres + Redis) + Caddy + DDNS Cloudflare (opcional).
+#
+# --- Stack local / integração (API na :8000) ---
+#   docker compose up -d
+#   ou .\compose-up.ps1
+#
+# --- Produção em casa (API + Caddy HTTPS :443, API só em localhost:8000) ---
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod up -d
+#   ou .\compose-prod.ps1
+#
+# --- Com DDNS (atualiza o A de api.upi.patitow.dev no Cloudflare) ---
+#   Preenche .env + certificados em certs/ (ver certs/README.md). Depois:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod --profile ddns up -d
+#   ou .\compose-prod.ps1 -Ddns
+#
+# --- api.upi.patitow.dev (HTTPS end-to-end) ---
+# 1. certs/origin.pem + certs/origin-key.pem (Cloudflare → SSL/TLS → Origin Server).
+# 2. Cloudflare SSL/TLS: modo Full (strict).
+# 3. Router: port forward TCP 443 → IP deste PC na LAN (80 opcional, redirect no Caddy).
+# 4. Cloudflare DNS: registo A para api.upi (DDNS cria/atualiza) com proxy LIGADO (nuvem laranja).
+# 5. API Token + .env (CLOUDFLARE_API_TOKEN, DDNS_DOMAINS, CORS_ORIGINS, OPENAI_API_KEY).
+# 6. .\compose-prod.ps1 -Ddns
+#
+# Logs do DDNS: docker compose logs -f cloudflare-ddns-upi
+# Metadados do deploy: server.json
+
 services:
   db:
     image: ankane/pgvector:latest
@@ -16,6 +42,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    restart: unless-stopped
 
   redis:
     image: redis/redis-stack-server:latest
@@ -30,6 +57,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
+    restart: unless-stopped
 
   api:
     build: .
@@ -42,7 +70,7 @@ services:
       - DATABASE_URL=postgresql+psycopg2://upi_user:upi_password@db:5432/upi_db
       - REDIS_URL=redis://redis:6379
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
-      - OLLAMA_MODEL=llama3.2:3b
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
       - UPI_DEV_MODE=0
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - TTS_PROVIDER=${TTS_PROVIDER:-gtts}
@@ -52,6 +80,38 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: upi_caddy
+    profiles: ["prod"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/etc/caddy/certs:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+  cloudflare-ddns:
+    image: favonia/cloudflare-ddns:1
+    container_name: cloudflare-ddns-upi
+    profiles: ["ddns"]
+    restart: unless-stopped
+    environment:
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      DOMAINS: ${DDNS_DOMAINS:-api.upi.patitow.dev}
+      # HTTP/API pode usar proxy laranja (diferente do Minecraft).
+      PROXIED: "true"
+      IP6_PROVIDER: "none"
 
 volumes:
   postgres_data:

@@ -1,5 +1,13 @@
-# Proxy HTTP na porta 80 → FastAPI (porta interna 8000).
-# Com Cloudflare proxy (nuvem laranja) + SSL Flexible, o tráfego chega aqui em HTTP.
+# HTTPS end-to-end: Cloudflare Full (strict) → Caddy :443 → API
+#
+# Certificados: certs/origin.pem + certs/origin-key.pem (Origin Certificate da Cloudflare)
+# Ver certs/README.md
+
 :80 {
+	redir https://{host}{uri} permanent
+}
+
+api.upi.patitow.dev {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin-key.pem
 	reverse_proxy api:8000
 }

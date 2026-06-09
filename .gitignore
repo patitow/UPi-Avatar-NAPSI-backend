@@ -228,3 +228,8 @@ data/*.txt
 data/*.md
 !data/napsi_info.txt
 data/chroma_eval_qwen2.5_7b/
+
+# Cloudflare Origin Certificate (gerar em certs/README.md)
+certs/*.pem
+certs/*.key
+!certs/README.md

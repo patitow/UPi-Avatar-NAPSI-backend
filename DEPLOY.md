@@ -1,43 +1,56 @@
-# Deploy do backend UPi (casa + Cloudflare)
+# Deploy do backend UPi (casa + Cloudflare, HTTPS end-to-end)
 
-Stack de produção: Postgres, Redis, API FastAPI, Caddy (`:80`) e, opcionalmente, DDNS Cloudflare.
+Guia completo: [`../DEPLOY.md`](../DEPLOY.md).
 
-Guia completo (front Vercel + DNS): [`../DEPLOY.md`](../DEPLOY.md).
+## HTTPS end-to-end
 
-## Comandos
-
-```powershell
-# Produção com DDNS (recomendado)
-.\compose-prod.ps1 -Ddns
-
-# Rebuild da imagem da API
-.\compose-prod.ps1 -Build -Ddns
-
-# Só stack local (sem DDNS) — útil para testar Caddy
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+Browser ──HTTPS──► Cloudflare ──HTTPS──► Caddy (:443) ──► API (:8000)
 ```
 
-## Variáveis `.env` (produção)
+Modo Cloudflare: **Full (strict)** — certificado **Origin** no Caddy.
+
+## Setup (uma vez)
+
+### 1. Origin Certificate (Cloudflare)
+
+**Onde:** zona `patitow.dev` → **SSL/TLS** → **Origin Server** → **Create Certificate**
+
+- Hostname: `api.upi.patitow.dev`
+- Guardar em:
+  - `certs/origin.pem`
+  - `certs/origin-key.pem`
+
+Detalhes: [`certs/README.md`](certs/README.md)
+
+### 2. SSL mode (Cloudflare)
+
+**Onde:** **SSL/TLS** → **Overview** → **Full (strict)**
+
+### 3. Router
+
+Port forward **TCP 443** → IP LAN deste PC (80 opcional, redirect HTTP→HTTPS no Caddy).
+
+### 4. `.env`
 
 ```env
 UPI_DEV_MODE=0
+OPENAI_API_KEY=sk-...
 CORS_ORIGINS=https://upi.patitow.dev,http://localhost:5173
 CLOUDFLARE_API_TOKEN=...
 DDNS_DOMAINS=api.upi.patitow.dev
-OPENAI_API_KEY=...
-OLLAMA_MODEL=llama3.2:3b
 ```
 
-## Rede
+### 5. Subir
 
-- Router: **TCP 80** → este PC
-- Cloudflare: registo A `api.upi.patitow.dev`, proxy ligado, SSL **Flexible**
-- DDNS: mesmo padrão do projeto Minecraft (`favonia/cloudflare-ddns`)
+```powershell
+.\compose-prod.ps1 -Ddns
+```
 
-## Arquivos
+## Verificar
 
-| Arquivo | Função |
-|---------|--------|
-| `docker-compose.prod.yml` | Caddy + DDNS; API só na rede interna Docker |
-| `Caddyfile` | `:80` → `api:8000` |
-| `compose-prod.ps1` | Sobe stack + profile `ddns` |
+```powershell
+curl https://api.upi.patitow.dev/health
+```
+
+Esperado: `{"status":"healthy","ok":true}`
