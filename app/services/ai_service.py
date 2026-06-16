@@ -12,13 +12,20 @@ from langchain_ollama import ChatOllama
 from app.prompts.upi_prompts import UPI_SYSTEM_PROMPT
 from app.config import settings
 
-# =========================
-# NOVO: EDGE-TTS
-# =========================
-import edge_tts
+
+import re
+# ==================================================
+# INÍCIO - TTS (ElevenLabs + Edge-TTS Fallback)
+# ==================================================
+
 import tempfile
 import base64
-import re
+from elevenlabs.client import ElevenLabs
+import edge_tts
+
+# ==================================================
+# FIM - TTS
+# ==================================================
 
 class AIService:
     """
@@ -118,6 +125,103 @@ class AIService:
             persist_directory="db"
         )
 
+    # ==================================================
+    # INÍCIO - TTS (ElevenLabs + Edge-TTS Fallback)
+    # ==================================================
+
+    async def _generate_audio_elevenlabs(self, text: str):
+        """
+        Gera áudio usando ElevenLabs.
+        """
+
+        client = ElevenLabs(
+            api_key=settings.ELEVENLABS_API_KEY
+        )
+
+        audio_generator = client.text_to_speech.convert(
+            voice_id=settings.ELEVENLABS_VOICE_ID,
+            text=text,
+            model_id="eleven_multilingual_v2"
+        )
+
+        audio_bytes = b"".join(audio_generator)
+
+        return (
+            "data:audio/mpeg;base64,"
+            + base64.b64encode(audio_bytes).decode("utf-8")
+        )
+
+
+    async def _generate_audio_edge(self, text: str):
+        """
+        Fallback Edge-TTS.
+        """
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".mp3",
+            delete=False
+        ) as tmp:
+
+            output_file = tmp.name
+
+        clean_text = re.sub(r"[*_#`]", "", text)
+        clean_text = re.sub(r"\n+", " ", clean_text)
+        clean_text = clean_text.replace("/", "")
+        clean_text = clean_text.strip()
+
+        communicate = edge_tts.Communicate(
+            text=clean_text,
+            voice="pt-BR-FranciscaNeural"
+        )
+
+        await communicate.save(output_file)
+
+        with open(output_file, "rb") as f:
+            audio_bytes = f.read()
+
+        os.remove(output_file)
+
+        return (
+            "data:audio/mpeg;base64,"
+            + base64.b64encode(audio_bytes).decode("utf-8")
+        )
+
+
+    async def generate_audio(self, text: str):
+        """
+        Primeiro tenta ElevenLabs.
+        Se falhar, usa Edge-TTS.
+        """
+
+        try:
+
+            if settings.ELEVENLABS_API_KEY:
+
+                print(
+                    "[TTS] Usando ElevenLabs",
+                    flush=True
+                )
+
+                return await self._generate_audio_elevenlabs(text)
+
+        except Exception as e:
+
+            print(
+                f"[TTS] ElevenLabs falhou: {e}",
+                flush=True
+            )
+
+        print(
+            "[TTS] Fallback Edge-TTS",
+            flush=True
+        )
+
+        return await self._generate_audio_edge(text)
+
+    # ==================================================
+    # FIM - TTS
+    # ==================================================
+
     async def get_response(self, user_input: str, chat_history: List[BaseMessage] = None):
         """Processa a entrada do usuário com Busca por Similaridade Semântica manual via RedisVL."""
         try:
@@ -180,8 +284,18 @@ class AIService:
                     
                     # Threshold de 0.12 (Ajuste fino para máxima precisão com Llama 3.2)
                     if distance < 0.12:
-                        print(f"[SEMANTIC HIT] Similaridade: {1-distance:.2%} | Usando Cache.", flush=True)
-                        return self._parse_structured_response(hit['response'])
+                        parsed = self._parse_structured_response(
+                            hit["response"]
+                        )
+
+                        try:
+                            parsed["audio"] = await self.generate_audio(
+                                parsed["response"]
+                            )
+                        except Exception:
+                            parsed["audio"] = ""
+
+                        return parsed
 
             # 3. Cache Miss - Processa via LLM
             print(f"[LLM] Pensando: {user_input}", flush=True)
@@ -212,26 +326,27 @@ class AIService:
                 except Exception as e:
                     print(f"Erro ao indexar no cache: {e}", flush=True)
             
-            result = self._parse_structured_response(response_text)
 
-            # ==========================================
-            # NOVO: GERA ÁUDIO EDGE-TTS
-            # ==========================================
-            audio = await self.generate_audio(
-                result.get("response", "")
-            )
+            #=======================================
+            #INÍCIO: MUDANÇA NO RETORNO
+            #======================================
+            parsed = self._parse_structured_response(response_text)
 
-            result["audio"] = audio
+            try:
+                parsed["audio"] = await self.generate_audio(
+                    parsed["response"]
+                )
 
-            print(
-                "Áudio gerado:",
-                len(audio) if audio else 0
-            )
+            except Exception as e:
+                print(f"Erro TTS: {e}", flush=True)
+                parsed["audio"] = ""
 
-            return result
-            # ==========================================
-            # FIM: GERA ÁUDIO EDGE-TTS
-            # ==========================================
+            
+
+            return parsed
+            #========================
+            #FIM: RETORNO ELEVENLABS
+            #========================
             
         except Exception as e:
             print(f"Erro crítico no AIService: {e}", flush=True)
@@ -263,77 +378,7 @@ class AIService:
             raise e
         
 
-    # ==================================================
-    # NOVO: GERAÇÃO DE ÁUDIO COM EDGE-TTS
-    # ==================================================
-    async def generate_audio(self, text: str) -> str:
-        """
-        Gera áudio MP3 usando Edge-TTS e retorna em Base64.
-        """
-
-        try:
-            voice = "pt-BR-FranciscaNeural"
-
-            clean_text = text
-
-            clean_text = re.sub(r"[*_#`]", "", clean_text)
-            clean_text = re.sub(r"\n+", " ", clean_text)
-            clean_text = clean_text.replace("/", "")
-            clean_text = clean_text.strip()
-
-            print("=" * 50)
-            print("VOICE:", voice)
-            print("TEXT ORIGINAL:", repr(text))
-            print("TEXT LIMPO:", repr(clean_text))
-            print("TAMANHO:", len(clean_text))
-            print("=" * 50)
-
-            if not clean_text:
-                return ""
-
-            with tempfile.NamedTemporaryFile(
-                suffix=".mp3",
-                delete=False
-            ) as tmp_file:
-
-                temp_path = tmp_file.name
-
-            communicate = edge_tts.Communicate(
-                text=clean_text,
-                voice=voice
-            )
-
-            await communicate.save(temp_path)
-
-            if not os.path.exists(temp_path):
-                print("ARQUIVO NÃO CRIADO")
-                return ""
-
-            file_size = os.path.getsize(temp_path)
-
-            print("ARQUIVO GERADO:", temp_path)
-            print("TAMANHO MP3:", file_size)
-
-            if file_size == 0:
-                return ""
-
-            with open(temp_path, "rb") as audio_file:
-                audio_bytes = audio_file.read()
-
-            os.remove(temp_path)
-
-            return (
-                "data:audio/mp3;base64,"
-                + base64.b64encode(audio_bytes).decode("utf-8")
-            )
-
-        except Exception as e:
-            print("EDGE ERROR:", repr(e))
-            return ""
-
-    # ==================================================
-    # FIM: GERAÇÃO DE ÁUDIO COM EDGE-TTS
-    # ==================================================
+    
 
     def _parse_structured_response(self, raw: str) -> dict:
         """Tenta parsear a resposta como JSON, fallback para texto puro se falhar."""

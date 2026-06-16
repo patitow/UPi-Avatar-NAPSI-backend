@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     # Fallback
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
+    ELEVENLABS_API_KEY: str = os.getenv("ELEVENLABS_API_KEY", "")
+    ELEVENLABS_VOICE_ID: str = os.getenv(
+        "ELEVENLABS_VOICE_ID",
+        "EXAVITQu4vr4xnSDxMaL"  # Bella
+    )
+
     class Config:
         env_file = ".env"
 
