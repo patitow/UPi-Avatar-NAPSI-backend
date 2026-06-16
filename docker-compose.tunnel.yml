@@ -1,0 +1,19 @@
+# Cloudflare Tunnel: api.upi.patitow.dev → http://api:8000 (sem port forward / sem Origin cert).
+#
+# 1. dash.cloudflare.com → Zero Trust → Networks → Tunnels → Create
+# 2. Public hostname: api.upi.patitow.dev → Type HTTP → URL http://api:8000
+# 3. Copia o token: CLOUDFLARE_TUNNEL_TOKEN no .env
+# 4. .\compose-prod.ps1 -Tunnel -NoDdns
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: upi_cloudflared
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      api:
+        condition: service_started

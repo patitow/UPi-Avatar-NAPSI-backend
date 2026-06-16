@@ -1,46 +1,145 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import uvicorn
 import os
-from dotenv import load_dotenv
+from typing import List, Optional
 
-load_dotenv()
+import pydantic
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="UPi API", description="Backend para o Avatar Inteligente NAPSI/UPE")
+from app.config import settings
+from app.site_auth import (
+    issue_site_token,
+    require_site_access,
+    site_auth_enabled,
+    verify_password,
+)
+from app.services.ai_service import ai_service
 
-# Configuração de CORS para permitir o frontend (Vite costuma usar porta 5173)
+app = FastAPI(
+    title="UPi Avatar Backend",
+    description="Servidor central do UPi - Suporte Psicopedagógico",
+    version="1.0.0",
+)
+
+
+def _parse_cors_origins() -> list[str]:
+    raw = (settings.CORS_ORIGINS or "").strip()
+    if raw == "*":
+        return ["*"]
+    origins = [o.strip() for o in raw.split(",") if o.strip()]
+    return origins or ["http://localhost:5173"]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Em produção, restringir ao domínio do frontend
+    allow_origins=_parse_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-from app.services.ai_service import ai_service
 
-class ChatMessage(BaseModel):
+class ChatRequest(pydantic.BaseModel):
     message: str
-    user_id: str = "default_user"
+    user_id: Optional[str] = None
+    chat_history: Optional[List[dict]] = []
 
-@app.get("/")
-async def root():
-    return {"status": "online", "message": "UPi API está funcionando!"}
 
-@app.post("/chat")
-async def chat(payload: ChatMessage):
-    response = await ai_service.get_response(payload.message)
-    return response
-
-class IngestData(BaseModel):
+class IngestRequest(pydantic.BaseModel):
     text: str
     metadata: dict = {}
 
-@app.post("/ingest")
-async def ingest(payload: IngestData):
-    await ai_service.add_document(payload.text, payload.metadata)
-    return {"status": "success", "message": "Documento ingerido com sucesso!"}
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+class LoginRequest(pydantic.BaseModel):
+    password: str
+
+
+@app.get("/auth/config")
+def auth_config():
+    return {"required": site_auth_enabled()}
+
+
+@app.get("/api/auth/config")
+def api_auth_config():
+    return auth_config()
+
+
+@app.post("/auth/login")
+def auth_login(payload: LoginRequest):
+    if not site_auth_enabled():
+        return {"ok": True, "token": None}
+    if not verify_password(payload.password):
+        raise HTTPException(status_code=401, detail="Senha incorreta")
+    return {"ok": True, "token": issue_site_token()}
+
+
+@app.post("/api/auth/login")
+def api_auth_login(payload: LoginRequest):
+    return auth_login(payload)
+
+
+@app.get("/health")
+def health_check():
+    """Liveness para o front — sem detalhes de stack (LLM, DB, TTS)."""
+    return {"status": "healthy", "ok": True}
+
+
+@app.get("/api/health")
+def api_health_check():
+    return health_check()
+
+
+async def handle_chat_interaction(payload: ChatRequest):
+    try:
+        formatted_history = []
+        if payload.chat_history:
+            from langchain_core.messages import HumanMessage, AIMessage
+
+            for msg in payload.chat_history:
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                if role == "user":
+                    formatted_history.append(HumanMessage(content=content))
+                elif role in ("assistant", "ai"):
+                    formatted_history.append(AIMessage(content=content))
+
+        return await ai_service.get_response(
+            user_input=payload.message,
+            chat_history=formatted_history,
+            user_id=payload.user_id,
+        )
+    except Exception as e:
+        print(f"[API ERROR]: {e}", flush=True)
+        raise HTTPException(status_code=500, detail="Erro interno do servidor")
+
+
+@app.post("/chat")
+async def chat_direct(
+    payload: ChatRequest,
+    _: None = Depends(require_site_access),
+):
+    return await handle_chat_interaction(payload)
+
+
+@app.post("/api/chat")
+async def chat_api(
+    payload: ChatRequest,
+    _: None = Depends(require_site_access),
+):
+    return await handle_chat_interaction(payload)
+
+
+@app.post("/ingest")
+async def ingest(
+    payload: IngestRequest,
+    _: None = Depends(require_site_access),
+):
+    await ai_service.add_document(payload.text, payload.metadata)
+    return {"status": "success", "message": "Documento indexado."}
+
+
+@app.post("/api/ingest")
+async def ingest_api(
+    payload: IngestRequest,
+    _: None = Depends(require_site_access),
+):
+    return await ingest(payload)

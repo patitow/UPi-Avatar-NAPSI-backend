@@ -1,0 +1,4 @@
+# Producao: API so na rede Docker (Caddy faz o proxy publico).
+services:
+  api:
+    ports: !reset []

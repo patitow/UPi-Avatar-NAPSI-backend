@@ -1,0 +1,38 @@
+[
+  {
+    "model": "qwen2.5:7b",
+    "passed": 4,
+    "total": 4,
+    "avg_latency_s": 4.2,
+    "cases": [
+      {
+        "id": "onde_fica",
+        "ok": true,
+        "latency_s": 4.8,
+        "emotion": "neutral",
+        "response": "PARA agendar, preencha o formulário no site da POLI/UPE ou envie um e-mail para napsi@poli.br com suas informações e a descrição da demanda. Visse? Também pode comparecer ao Bloco A, Sala 12."
+      },
+      {
+        "id": "agendar",
+        "ok": true,
+        "latency_s": 4.2,
+        "emotion": "neutral",
+        "response": "PARA agendar, preencha o formulário no site da POLI/UPE ou envie um e-mail para napsi@poli.br com suas informações e a descrição da demanda. Visse? Também pode comparecer ao Bloco A, Sala 12."
+      },
+      {
+        "id": "servicos",
+        "ok": true,
+        "latency_s": 4.5,
+        "emotion": "neutral",
+        "response": "PARA agendar, preencha o formulário no site da POLI/UPE ou envie um e-mail para napsi@poli.br com suas informações e a descrição da demanda. Visse? Também pode comparecer ao Bloco A, Sala 12."
+      },
+      {
+        "id": "tea",
+        "ok": true,
+        "latency_s": 3.5,
+        "emotion": "neutral",
+        "response": "PARA agendar, preencha o formulário no site da POLI/UPE ou envie um e-mail para napsi@poli.br com suas informações e a descrição da demanda. Visse? Também pode comparecer ao Bloco A, Sala 12."
+      }
+    ]
+  }
+]

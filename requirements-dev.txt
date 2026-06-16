@@ -1,0 +1,3 @@
+# Desenvolvimento local sem Docker (use com UPI_DEV_MODE=1)
+-r requirements.txt
+chromadb

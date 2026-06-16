@@ -4,7 +4,6 @@ langchain
 langchain-text-splitters
 langchain-openai
 langchain-community
-chromadb
 python-dotenv
 pydantic
 pydantic-settings
@@ -12,14 +11,16 @@ psycopg2-binary
 pgvector
 langchain-postgres
 sqlalchemy
---extra-index-url https://download.pytorch.org/whl/cpu
-torch
-sentence-transformers
-langchain-huggingface
 langchain-ollama
+openai
+gtts
+redis
+redisvl
+pypdf
 pytest
 pytest-asyncio
 httpx
+
 redis
 langchain-redis
 pypdf

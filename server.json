@@ -1,0 +1,15 @@
+{
+  "updated": "2026-06-08",
+  "service": "upi-api",
+  "domain": "api.upi.patitow.dev",
+  "front_domain": "upi.patitow.dev",
+  "port_public_https": 443,
+  "port_public_http_redirect": 80,
+  "port_api_internal": 8000,
+  "caddy_config": "Caddyfile",
+  "origin_certs": "certs/origin.pem,certs/origin-key.pem",
+  "ddns_container": "cloudflare-ddns-upi",
+  "ddns_proxied": true,
+  "cloudflare_ssl": "full_strict",
+  "compose_prod": "docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile prod --profile ddns up -d"
+}

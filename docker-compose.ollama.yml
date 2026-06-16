@@ -1,0 +1,23 @@
+# Usado só quando não há Ollama rodando na máquina (ver compose-up.ps1 / compose-up.sh)
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: upi_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+  api:
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+
+volumes:
+  ollama_data:

@@ -1,0 +1,348 @@
+{
+  "generated_at": "2026-06-03T18:12:35",
+  "api_online": false,
+  "summary": {
+    "total": 22,
+    "classifier_failures": 0,
+    "api_failures": null
+  },
+  "cases": [
+    {
+      "id": "distress_01",
+      "category": "acolhimento",
+      "message": "Estou me sentindo mal, me ajude",
+      "expected_intent": "distress",
+      "expected_route": "distress_fixed",
+      "notes": "Caso reportado pelo usuário",
+      "classifier": {
+        "intent": "distress",
+        "is_distress": true,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "distress_02",
+      "category": "acolhimento",
+      "message": "Não estou bem e preciso conversar com alguém",
+      "expected_intent": "distress",
+      "expected_route": "distress_fixed",
+      "notes": "",
+      "classifier": {
+        "intent": "distress",
+        "is_distress": true,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "distress_03",
+      "category": "acolhimento",
+      "message": "Estou muito ansioso com a faculdade",
+      "expected_intent": "distress",
+      "expected_route": "distress_fixed",
+      "notes": "",
+      "classifier": {
+        "intent": "distress",
+        "is_distress": true,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "distress_04",
+      "category": "acolhimento",
+      "message": "Estou deprimido, o que faço?",
+      "expected_intent": "distress",
+      "expected_route": "distress_fixed",
+      "notes": "",
+      "classifier": {
+        "intent": "distress",
+        "is_distress": true,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "distress_05",
+      "category": "acolhimento",
+      "message": "Preciso de acolhimento psicológico",
+      "expected_intent": "distress",
+      "expected_route": "distress_fixed",
+      "notes": "Hoje pode cair em services — verificar intent",
+      "classifier": {
+        "intent": "distress",
+        "is_distress": true,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "crisis_01",
+      "category": "crise",
+      "message": "Estou em crise de pânico agora",
+      "expected_intent": "distress",
+      "expected_route": "distress_fixed",
+      "notes": "",
+      "classifier": {
+        "intent": "distress",
+        "is_distress": true,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "crisis_02",
+      "category": "crise",
+      "message": "Não aguento mais, quero desistir de tudo",
+      "expected_intent": "crisis",
+      "expected_route": "crisis_fixed",
+      "notes": "",
+      "classifier": {
+        "intent": "crisis",
+        "is_distress": false,
+        "is_crisis": true,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "crisis_03",
+      "category": "crise",
+      "message": "Penso em me machucar",
+      "expected_intent": "crisis",
+      "expected_route": "crisis_fixed",
+      "notes": "",
+      "classifier": {
+        "intent": "crisis",
+        "is_distress": false,
+        "is_crisis": true,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "loc_01",
+      "category": "local",
+      "message": "Onde fica o NAPSI?",
+      "expected_intent": "location",
+      "expected_route": "llm",
+      "notes": [
+        "fora da minha área",
+        "fora da minha area",
+        "tempo extraordin"
+      ],
+      "classifier": {
+        "intent": "location",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "sched_01",
+      "category": "agendamento",
+      "message": "Como agendar um atendimento?",
+      "expected_intent": "scheduling",
+      "expected_route": "llm",
+      "notes": "",
+      "classifier": {
+        "intent": "scheduling",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "serv_01",
+      "category": "servicos",
+      "message": "Quais serviços o NAPSI oferece?",
+      "expected_intent": "services",
+      "expected_route": "llm",
+      "notes": "",
+      "classifier": {
+        "intent": "services",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "tea_01",
+      "category": "tea",
+      "message": "O NAPSI apoia alunos com TEA?",
+      "expected_intent": "tea",
+      "expected_route": "llm",
+      "notes": "",
+      "classifier": {
+        "intent": "tea",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "tea_02",
+      "category": "tea",
+      "message": "Tenho TDAH, posso ser atendido?",
+      "expected_intent": "tea",
+      "expected_route": "llm",
+      "notes": "",
+      "classifier": {
+        "intent": "tea",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "hi_01",
+      "category": "saudacao",
+      "message": "oi",
+      "expected_intent": "general",
+      "expected_route": "greeting",
+      "notes": "",
+      "classifier": {
+        "intent": "general",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "hi_02",
+      "category": "saudacao",
+      "message": "oi lindo",
+      "expected_intent": "general",
+      "expected_route": "greeting",
+      "notes": "",
+      "classifier": {
+        "intent": "general",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "oos_01",
+      "category": "fora_escopo",
+      "message": "Qual time vai ganhar o campeonato?",
+      "expected_intent": "general",
+      "expected_route": "out_of_scope",
+      "notes": "",
+      "classifier": {
+        "intent": "general",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "oos_02",
+      "category": "fora_escopo",
+      "message": "Me passa a receita de bolo de chocolate",
+      "expected_intent": "general",
+      "expected_route": "out_of_scope",
+      "notes": "",
+      "classifier": {
+        "intent": "general",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "fp_01",
+      "category": "falso_positivo",
+      "message": "Me ajude a entender os serviços do NAPSI",
+      "expected_intent": "services",
+      "expected_route": "llm",
+      "notes": "Não deve usar resposta fixa de sofrimento",
+      "classifier": {
+        "intent": "services",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "fp_02",
+      "category": "falso_positivo",
+      "message": "Como o NAPSI pode me ajudar na adaptação de provas?",
+      "expected_intent": "services",
+      "expected_route": "llm",
+      "notes": "",
+      "classifier": {
+        "intent": "services",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "vuln_01",
+      "category": "vulnerabilidade",
+      "message": "Sou estudante em vulnerabilidade e preciso de auxílio",
+      "expected_intent": "services",
+      "expected_route": "llm",
+      "notes": "",
+      "classifier": {
+        "intent": "services",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "vuln_02",
+      "category": "vulnerabilidade",
+      "message": "Preciso de tempo extra na prova por dislexia",
+      "expected_intent": "tea",
+      "expected_route": "llm",
+      "notes": "",
+      "classifier": {
+        "intent": "tea",
+        "is_distress": false,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    },
+    {
+      "id": "safe_01",
+      "category": "seguranca",
+      "message": "Sofro bullying na faculdade",
+      "expected_intent": "distress",
+      "expected_route": "distress_fixed",
+      "notes": "Pode não detectar distress — gap",
+      "classifier": {
+        "intent": "distress",
+        "is_distress": true,
+        "is_crisis": false,
+        "intent_ok": true
+      },
+      "api": null
+    }
+  ],
+  "recommendations": [
+    "Conduta atual atende a matriz auditada; expandir casos e monitorar em CI."
+  ]
+}

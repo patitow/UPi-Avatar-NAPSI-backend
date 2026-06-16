@@ -219,9 +219,17 @@ __marimo__/
 
 # Project Specific
 db/
+data/chroma_db/
+data/dev_semantic_cache.json
 redis_data/
 postgres_data/
 data/*.pdf
 data/*.txt
 data/*.md
 !data/napsi_info.txt
+data/chroma_eval_qwen2.5_7b/
+
+# Cloudflare Origin Certificate (gerar em certs/README.md)
+certs/*.pem
+certs/*.key
+!certs/README.md

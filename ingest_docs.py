@@ -16,7 +16,8 @@ async def ingest_folder(folder_path: str):
 
     print(f"Iniciando ingestão de documentos em: {folder_path}...")
 
-    for file_path in data_path.glob("*"):
+    paths = list(data_path.glob("*")) + list(data_path.glob("knowledge/*"))
+    for file_path in paths:
         if file_path.suffix.lower() == ".pdf":
             loader = PyPDFLoader(str(file_path))
         elif file_path.suffix.lower() == ".txt":
