@@ -1,13 +1,3 @@
-# Cloudflare Full → Caddy :443 (Origin Certificate) → API
-# Ver certs/README.md
-
-:80 {
-	redir https://{host}{uri} permanent
-}
-
-api.upi.patitow.dev {
-	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin-key.pem {
-		protocols tls1.2 tls1.3
-	}
+upi-api.patitow.dev {
 	reverse_proxy api:8000
 }
