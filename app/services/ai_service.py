@@ -885,14 +885,9 @@ class AIService:
             response = self.llm.invoke(messages)
             return response.content
         except Exception as e:
-            print(f"[LLM OFFLINE] {e}", flush=True)
-            result = self._keyword_fallback(user_input)
-
-        timings["total"] = (time.perf_counter() - started) * 1000
-        self._log_timings("llm-path", timings)
-        return self._finalize(result)
             print(f"Erro no LLM: {e}. Tentando fallback...", flush=True)
-            if not self.using_fallback:
+            if not getattr(self, 'using_fallback', False):
+                from langchain_community.chat_models import ChatOllama
                 fallback_llm = ChatOllama(
                     model=settings.OLLAMA_MODEL,
                     base_url=settings.OLLAMA_BASE_URL
