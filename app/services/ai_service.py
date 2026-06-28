@@ -614,7 +614,13 @@ class AIService:
                     user_input,
                     json.dumps(result, ensure_ascii=False),
                 )
-            self._init_chroma_fallback(initial_data, e)
+        except Exception as e:
+            print(f"[LLM OFFLINE] {e}", flush=True)
+            result = self._keyword_fallback(user_input)
+
+        timings["total"] = (time.perf_counter() - started) * 1000
+        self._log_timings("llm-path", timings)
+        return self._finalize(result)
 
     def _populate_if_empty(self, data: list):
         """Adiciona dados iniciais se a coleção estiver vazia."""
