@@ -543,7 +543,8 @@ class AIService:
         result["response"] = polish_portuguese(
             self._sanitize_response_tone(str(result.get("response", "")))
         )
-        result["audio"] = await self.generate_audio(result["response"])
+        if not result.get("audio"):
+            result["audio"] = await self.generate_audio(result["response"])
         return result
 
     async def _invoke_llm(self, messages: list):
@@ -607,20 +608,24 @@ class AIService:
             result = self._parse_structured_response(response_text)
             result = self._block_out_of_scope_for_distress(user_input, result)
             result = self._apply_intent_fallback(user_input, result)
-            if response_matches_intent(
-                str(result.get("response", "")), classify_intent(user_input)
-            ):
-                self._store_semantic_cache(
-                    user_input,
-                    json.dumps(result, ensure_ascii=False),
-                )
         except Exception as e:
             print(f"[LLM OFFLINE] {e}", flush=True)
             result = self._keyword_fallback(user_input)
 
         timings["total"] = (time.perf_counter() - started) * 1000
         self._log_timings("llm-path", timings)
-        return await self._finalize(result)
+        
+        final_result = await self._finalize(result)
+        
+        if response_matches_intent(
+            str(final_result.get("response", "")), classify_intent(user_input)
+        ):
+            self._store_semantic_cache(
+                user_input,
+                json.dumps(final_result, ensure_ascii=False),
+            )
+            
+        return final_result
 
     def _populate_if_empty(self, data: list):
         """Adiciona dados iniciais se a coleção estiver vazia."""
@@ -704,36 +709,30 @@ class AIService:
         )
 
 
+    TTS_CACHE: dict = {}
+
     async def generate_audio(self, text: str):
         """
         Primeiro tenta ElevenLabs.
         Se falhar, usa Edge-TTS.
+        Possui cache em memória para não gastar tokens com a mesma string (fast-paths).
         """
+        if text in self.TTS_CACHE:
+            return self.TTS_CACHE[text]
 
         try:
-
             if settings.ELEVEN_LABS_API_KEY:
-
-                print(
-                    "[TTS] Usando ElevenLabs",
-                    flush=True
-                )
-
-                return await self._generate_audio_elevenlabs(text)
-
+                print("[TTS] Usando ElevenLabs", flush=True)
+                audio = await self._generate_audio_elevenlabs(text)
+                self.TTS_CACHE[text] = audio
+                return audio
         except Exception as e:
+            print(f"[TTS] ElevenLabs falhou: {e}", flush=True)
 
-            print(
-                f"[TTS] ElevenLabs falhou: {e}",
-                flush=True
-            )
-
-        print(
-            "[TTS] Fallback Edge-TTS",
-            flush=True
-        )
-
-        return await self._generate_audio_edge(text)
+        print("[TTS] Fallback Edge-TTS", flush=True)
+        audio = await self._generate_audio_edge(text)
+        self.TTS_CACHE[text] = audio
+        return audio
 
     # ==================================================
     # FIM - TTS

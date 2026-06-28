@@ -23,6 +23,7 @@ COPY . .
 EXPOSE 8000
 
 # Comando para iniciar a aplicação
-# 4 workers async = suporta ~20 requisicoes simultaneas sem bloquear
+# 2 workers async = suficiente para VPS 4GB com Postgres + Redis + Caddy rodando juntos
+# FastAPI e async por natureza, 2 workers suportam bem a carga sem desperdicar ~430MB de RAM
 # --timeout-keep-alive 75 evita que conexoes caiam antes do LLM responder
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--timeout-keep-alive", "75"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2", "--timeout-keep-alive", "75"]
