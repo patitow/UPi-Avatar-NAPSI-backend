@@ -66,19 +66,13 @@ services:
       - "8000:8000"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
     environment:
+      # Sobrescreve apenas o que precisa apontar para os servicos internos do compose
       - DATABASE_URL=postgresql+psycopg2://upi_user:upi_password@db:5432/upi_db
       - REDIS_URL=redis://redis:6379
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:3b}
-      - UPI_DEV_MODE=0
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-5-nano}
-      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
-      - EMBEDDINGS_PROVIDER=${EMBEDDINGS_PROVIDER:-auto}
-      - COLLECTION_NAME=${COLLECTION_NAME:-upi_knowledge}
-      - TTS_PROVIDER=${TTS_PROVIDER:-gtts}
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     depends_on:
       db:
         condition: service_healthy

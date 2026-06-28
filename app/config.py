@@ -74,7 +74,6 @@ class Settings(BaseSettings):
         "EXAVITQu4vr4xnSDxMaL"  # Bella
     )
 
-    class Config:
-        env_file = ".env"
+
 
 settings = Settings()

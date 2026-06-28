@@ -23,5 +23,6 @@ COPY . .
 EXPOSE 8000
 
 # Comando para iniciar a aplicação
-# Usamos uvicorn diretamente para melhor performance em container
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 4 workers async = suporta ~20 requisicoes simultaneas sem bloquear
+# --timeout-keep-alive 75 evita que conexoes caiam antes do LLM responder
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4", "--timeout-keep-alive", "75"]
