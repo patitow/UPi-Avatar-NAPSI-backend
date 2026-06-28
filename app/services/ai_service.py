@@ -794,23 +794,6 @@ class AIService:
             return {"response": m.group(1).strip(), "emotion": emo}
 
         return {"response": clean[:500], "emotion": "neutral"}
-        """Tenta parsear a resposta como JSON, fallback para texto puro se falhar."""
-        import json
-        try:
-            # Limpa possíveis blocos de código markdown e prefixos "JSON:"
-            clean_raw = raw.replace("```json", "").replace("```", "").replace("JSON:", "").strip()
-            data = json.loads(clean_raw)
-            return data
-        except Exception:
-            # Se falhar o parse, tenta limpar o texto e retornar como resposta
-            clean_text = raw.replace("JSON:", "").replace("```json", "").replace("```", "").strip()
-            #======================================
-            # NOVO: return(só foi acrescentado o audio. O resto já tinha)
-            #======================================
-            return {"response": clean_text, "emotion": "neutral", "audio": ""}
-            #======================================
-            # FIM: return
-            #======================================
 
     async def add_document(self, text: str, metadata: dict = None):
         if not self.vector_store:
