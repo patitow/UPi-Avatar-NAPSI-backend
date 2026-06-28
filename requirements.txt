@@ -20,9 +20,5 @@ pypdf
 pytest
 pytest-asyncio
 httpx
-
-redis
-langchain-redis
-pypdf
 edge-tts==7.2.8
 elevenlabs>=1.0.0

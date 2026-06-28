@@ -748,7 +748,7 @@ class AIService:
         except Exception as e:
             print(f"Erro no LLM: {e}. Tentando fallback...", flush=True)
             if not getattr(self, 'using_fallback', False):
-                from langchain_community.chat_models import ChatOllama
+                from langchain_ollama import ChatOllama
                 fallback_llm = ChatOllama(
                     model=settings.OLLAMA_MODEL,
                     base_url=settings.OLLAMA_BASE_URL
