@@ -527,7 +527,7 @@ class AIService:
             "emotion": "calm",
         }
 
-    def _finalize(self, result: dict) -> dict:
+    async def _finalize(self, result: dict) -> dict:
         if isinstance(result, str):
             result = {"response": result, "emotion": "neutral"}
         elif not isinstance(result, dict):
@@ -543,7 +543,7 @@ class AIService:
         result["response"] = polish_portuguese(
             self._sanitize_response_tone(str(result.get("response", "")))
         )
-        result["audio"] = synthesize_speech(result["response"])
+        result["audio"] = await self.generate_audio(result["response"])
         return result
 
     async def _invoke_llm(self, messages: list):
@@ -570,15 +570,15 @@ class AIService:
 
         if is_crisis_message(user_input):
             self._log_timings("crisis-fast-path", timings)
-            return self._finalize(self._crisis_response(user_input))
+            return await self._finalize(self._crisis_response(user_input))
 
         if is_distress_message(user_input):
             self._log_timings("distress-fast-path", timings)
-            return self._finalize(self._distress_response(user_input))
+            return await self._finalize(self._distress_response(user_input))
 
         if settings.UPI_FAST_GREETINGS and self._is_greeting(user_input):
             self._log_timings("greeting-fast-path", timings)
-            return self._finalize(self._greeting_response(user_input))
+            return await self._finalize(self._greeting_response(user_input))
 
         t_embed = time.perf_counter()
         query_vector = self._embed_query(user_input)
@@ -590,7 +590,7 @@ class AIService:
         if cached and cached.get("response"):
             timings["total"] = (time.perf_counter() - started) * 1000
             self._log_timings("cache-hit", timings)
-            return self._finalize(cached)
+            return await self._finalize(cached)
 
         t_rag = time.perf_counter()
         context = self._rag_context(user_input, query_vector)
@@ -620,7 +620,7 @@ class AIService:
 
         timings["total"] = (time.perf_counter() - started) * 1000
         self._log_timings("llm-path", timings)
-        return self._finalize(result)
+        return await self._finalize(result)
 
     def _populate_if_empty(self, data: list):
         """Adiciona dados iniciais se a coleção estiver vazia."""
@@ -652,7 +652,7 @@ class AIService:
         """
 
         client = ElevenLabs(
-            api_key=settings.ELEVENLABS_API_KEY
+            api_key=settings.ELEVEN_LABS_API_KEY
         )
 
         audio_generator = client.text_to_speech.convert(
@@ -712,7 +712,7 @@ class AIService:
 
         try:
 
-            if settings.ELEVENLABS_API_KEY:
+            if settings.ELEVEN_LABS_API_KEY:
 
                 print(
                     "[TTS] Usando ElevenLabs",
@@ -739,145 +739,7 @@ class AIService:
     # FIM - TTS
     # ==================================================
 
-    async def get_response(self, user_input: str, chat_history: List[BaseMessage] = None):
-        """Processa a entrada do usuário com Busca por Similaridade Semântica manual via RedisVL."""
-        try:
-            from redisvl.index import SearchIndex
-            from redisvl.query import VectorQuery
-            import numpy as np
 
-            # 1. Configuração do Índice Semântico
-            index_schema = {
-                "index": {"name": "upi_cache", "prefix": "cache"},
-                "fields": [
-                    {"name": "prompt", "type": "text"},
-                    {"name": "response", "type": "text"},
-                    {
-                        "name": "prompt_vector",
-                        "type": "vector",
-                        "attrs": {
-                            "dims": 3072,
-                            "distance_metric": "cosine",
-                            "algorithm": "flat",
-                            "datatype": "float32",
-                        },
-                    },
-                ],
-            }
-            
-            # Inicializa o índice (conecta ao Redis)
-            try:
-                idx = SearchIndex.from_dict(index_schema, redis_url=settings.REDIS_URL)
-                # Tenta criar o índice se não existir
-                if not idx.exists():
-                    idx.create(overwrite=False)
-            except Exception as e:
-                print(f"Erro ao conectar ao RedisVL: {e}", flush=True)
-                idx = None
-
-            # 2. Busca por Similaridade no Cache
-            query_vector = self.embeddings.embed_query(user_input)
-            query_vector_np = np.array(query_vector, dtype=np.float32).tobytes()
-            
-            # Fingerprint para debug
-            vector_fp = query_vector[:5]
-            print(f"[DEBUG VECTOR] Pergunta: {user_input} | FP: {vector_fp}", flush=True)
-            
-            if idx:
-                # Busca o vizinho mais próximo
-                query = VectorQuery(
-                    vector=query_vector,
-                    vector_field_name="prompt_vector",
-                    return_fields=["prompt", "response"],
-                    num_results=1
-                )
-                
-                results = idx.query(query)
-                
-                if results:
-                    hit = results[0]
-                    distance = float(hit.get('vector_distance', 1.0))
-                    print(f"[DEBUG CACHE] Pergunta: {user_input} | Hit: {hit.get('prompt')} | Distância: {distance:.4f}", flush=True)
-                    
-                    # Threshold de 0.12 (Ajuste fino para máxima precisão com Llama 3.2)
-                    if distance < 0.12:
-                        parsed = self._parse_structured_response(
-                            hit["response"]
-                        )
-
-                        try:
-                            parsed["audio"] = await self.generate_audio(
-                                parsed["response"]
-                            )
-                        except Exception:
-                            parsed["audio"] = ""
-
-                        return parsed
-
-            # 3. Cache Miss - Processa via LLM
-            print(f"[LLM] Pensando: {user_input}", flush=True)
-            docs = self.vector_store.similarity_search(user_input, k=3)
-            context = "\n".join([doc.page_content for doc in docs])
-            print(f"[DEBUG CONTEXT] Encontrado: {len(docs)} docs | Contexto: {context[:100]}...", flush=True)
-            
-            system_msg = UPI_SYSTEM_PROMPT.format(context=context)
-            messages = [SystemMessage(content=system_msg)]
-            if chat_history:
-                messages.extend(chat_history[-5:])
-            messages.append(HumanMessage(content=user_input))
-            
-            response = self.llm.invoke(messages)
-            response_text = response.content
-
-            # 4. Salva no Cache Semântico
-            if idx:
-                try:
-                    idx.load([
-                        {
-                            "prompt": user_input,
-                            "response": response_text,
-                            "prompt_vector": query_vector_np
-                        }
-                    ])
-                    print(f"[CACHE STORE] Indexado: {user_input}", flush=True)
-                except Exception as e:
-                    print(f"Erro ao indexar no cache: {e}", flush=True)
-            
-
-            #=======================================
-            #INÍCIO: MUDANÇA NO RETORNO
-            #======================================
-            parsed = self._parse_structured_response(response_text)
-
-            try:
-                parsed["audio"] = await self.generate_audio(
-                    parsed["response"]
-                )
-
-            except Exception as e:
-                print(f"Erro TTS: {e}", flush=True)
-                parsed["audio"] = ""
-
-            
-
-            return parsed
-            #========================
-            #FIM: RETORNO ELEVENLABS
-            #========================
-            
-        except Exception as e:
-            print(f"Erro crítico no AIService: {e}", flush=True)
-            return {
-                #================================================
-                # NOVO: return(só a linha "audio": "" é nova. A linha response e emotion já tinha antes)
-                #=================================================
-                "response": "Eita! Tive um probleminha aqui pra te responder. Tenta de novo em instantes!",
-                "emotion": "neutral",
-                "audio": ""
-                #================================================
-                # FIM: return
-                #=================================================
-            }
 
     async def _call_llm_structured(self, messages: list) -> str:
         """Executa a chamada ao LLM usando mensagens estruturadas (System/Human)."""
