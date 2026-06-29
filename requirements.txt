@@ -3,7 +3,7 @@ uvicorn
 langchain
 langchain-text-splitters
 langchain-openai
-langchain-community
+langchain-chroma
 python-dotenv
 pydantic
 pydantic-settings

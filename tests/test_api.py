@@ -5,7 +5,13 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    """Cliente de teste com auth desativada (UPI_DEV_MODE=True)."""
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "UPI_DEV_MODE", True)
+    monkeypatch.setattr(settings, "SITE_ACCESS_PASSWORD", "")
+
     with patch(
         "app.main.ai_service.get_response",
         new_callable=AsyncMock,
@@ -48,7 +54,7 @@ def test_chat_api_route(client):
     assert "response" in r.json()
 
 
-def test_chat_forwards_history():
+def test_chat_forwards_history(client):
     with patch(
         "app.main.ai_service.get_response",
         new_callable=AsyncMock,
@@ -56,8 +62,8 @@ def test_chat_forwards_history():
     ) as get_response:
         from app.main import app
 
-        client = TestClient(app)
-        r = client.post(
+        test_client = TestClient(app)
+        r = test_client.post(
             "/chat",
             json={
                 "message": "E o horário?",

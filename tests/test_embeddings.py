@@ -13,7 +13,9 @@ def test_embeddings_backend_auto_prefers_openai_with_key():
 
 
 def test_embeddings_backend_auto_falls_back_to_ollama_without_key():
-    with patch.object(AIService, "_openai_api_key", return_value=""):
+    with patch.object(AIService, "_openai_api_key", return_value=""), \
+         patch("app.services.ai_service.settings") as mock_settings:
+        mock_settings.EMBEDDINGS_PROVIDER = "auto"
         assert AIService._embeddings_backend() == "ollama"
 
 

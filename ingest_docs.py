@@ -1,9 +1,30 @@
 import os
 import asyncio
-from langchain_community.document_loaders import PyPDFLoader, TextLoader, UnstructuredMarkdownLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from app.services.ai_service import ai_service
 from pathlib import Path
+
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+from app.services.ai_service import ai_service
+
+
+def _load_pdf(file_path: Path) -> list[dict]:
+    """Carrega um PDF usando pypdf diretamente (sem langchain-community)."""
+    from pypdf import PdfReader
+
+    reader = PdfReader(str(file_path))
+    pages = []
+    for i, page in enumerate(reader.pages):
+        text = page.extract_text() or ""
+        if text.strip():
+            pages.append({"text": text, "page": i + 1})
+    return pages
+
+
+def _load_text(file_path: Path) -> list[dict]:
+    """Carrega um arquivo de texto ou markdown."""
+    content = file_path.read_text(encoding="utf-8")
+    return [{"text": content, "page": 1}]
+
 
 async def ingest_folder(folder_path: str):
     """
@@ -19,35 +40,41 @@ async def ingest_folder(folder_path: str):
     paths = list(data_path.glob("*")) + list(data_path.glob("knowledge/*"))
     for file_path in paths:
         if file_path.suffix.lower() == ".pdf":
-            loader = PyPDFLoader(str(file_path))
-        elif file_path.suffix.lower() == ".txt":
-            loader = TextLoader(str(file_path), encoding="utf-8")
-        elif file_path.suffix.lower() == ".md":
-            loader = TextLoader(str(file_path), encoding="utf-8")
+            loader = _load_pdf
+        elif file_path.suffix.lower() in (".txt", ".md"):
+            loader = _load_text
         else:
             continue
 
         print(f"Processando: {file_path.name}...")
         try:
-            # Carrega e divide o documento
-            documents = loader.load()
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-            chunks = text_splitter.split_documents(documents)
-            
-            # Adiciona ao vector store (pgvector)
-            for chunk in chunks:
-                await ai_service.add_document(
-                    text=chunk.page_content, 
-                    metadata={"source": file_path.name, **chunk.metadata}
+            pages = loader(file_path)
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000, chunk_overlap=100
+            )
+
+            total_chunks = 0
+            for page_data in pages:
+                chunks = text_splitter.create_documents(
+                    texts=[page_data["text"]],
+                    metadatas=[{"source": file_path.name, "page": page_data["page"]}],
                 )
-            print(f"Sucesso: {len(chunks)} trechos adicionados.")
+                for chunk in chunks:
+                    await ai_service.add_document(
+                        text=chunk.page_content,
+                        metadata=chunk.metadata,
+                    )
+                    total_chunks += 1
+
+            print(f"Sucesso: {total_chunks} trechos adicionados.")
         except Exception as e:
             print(f"Erro ao processar {file_path.name}: {e}")
+
 
 if __name__ == "__main__":
     # Cria a pasta data se não existir
     os.makedirs("data", exist_ok=True)
-    
+
     # Se houver arquivos na pasta, processa
     asyncio.run(ingest_folder("data"))
     print("\nIngestão concluída! O UPi agora conhece seus documentos.")

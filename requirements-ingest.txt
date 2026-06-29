@@ -1,0 +1,4 @@
+# Dependências extras para rodar ingest_docs.py manualmente (nao entra no container de prod).
+# Uso: pip install -r requirements-ingest.txt
+-r requirements.txt
+langchain-community

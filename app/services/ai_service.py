@@ -319,7 +319,7 @@ class AIService:
         persist_dir = settings.CHROMA_PERSIST_DIR
         os.makedirs(persist_dir, exist_ok=True)
         try:
-            from langchain_community.vectorstores import Chroma
+            from langchain_chroma import Chroma
 
             self.vector_store = Chroma(
                 embedding_function=self.embeddings,
@@ -640,7 +640,7 @@ class AIService:
     def _init_chroma_fallback(self, data: list, error: Exception):
         """Inicia ChromaDB como fallback para desenvolvimento local sem Docker."""
         print(f"Erro no Postgres: {error}. Usando Chroma fallback.")
-        from langchain_community.vectorstores import Chroma
+        from langchain_chroma import Chroma
         self.vector_store = Chroma.from_texts(
             texts=data,
             embedding=self.embeddings,
